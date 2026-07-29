@@ -34,7 +34,7 @@ FFMPEG_REV="d43b1efd2e948f44cfac91f7a4325a3d927d6718"
 PLACEBO_URL="https://github.com/ooyang0325/libplacebo.git"
 PLACEBO_REV="67032e7140fcd6978f553d12013c5c647b15f103"
 MPV_URL="https://github.com/ooyang0325/mpv.git"
-MPV_REV="2c7c2261299cc39c24795b6a8d7fa0a12cbe8c87"
+MPV_REV="9385e2d7dfbeb698c5586a93c20514e06c9d976c"
 
 while [ $# -gt 0 ]; do
     case "$1" in

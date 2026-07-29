@@ -2354,7 +2354,7 @@
 				84EB1ED31D2F51D3004FA5A1 /* Frameworks */,
 				84EB1ED41D2F51D3004FA5A1 /* Resources */,
 				84817C991DBDF57C00CC2279 /* Copy Dylibs */,
-				84B1CE561F98CAE300994D63 /* Copy Dylib Symlinks */,
+				84B1CE561F98CAE300994D63 /* Copy Dependency Dylibs */,
 				84817CE81DBE2E3200CC2279 /* Copy Lua Scripts */,
 				84E745DA1DFDE9C600588DED /* Copy Configs */,
 				8461BA631E423423008BB852 /* Copy Executables */,
@@ -2592,7 +2592,7 @@
 			shellPath = /bin/sh;
 			shellScript = "iina/write_info_plist_header.sh\n";
 		};
-		84B1CE561F98CAE300994D63 /* Copy Dylib Symlinks */ = {
+		84B1CE561F98CAE300994D63 /* Copy Dependency Dylibs */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -2600,12 +2600,12 @@
 			);
 			inputPaths = (
 			);
-			name = "Copy Dylib Symlinks";
+			name = "Copy Dependency Dylibs";
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "echo \"Copy symlinks:\"\n\nfor file in \"${SRCROOT}/deps/lib/\"*.dylib; do\n    if [[ -h \"$file\" ]]; then\n        cp -R $file \"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/$(basename $file)\"\n    fi\ndone\n";
+			shellScript = "echo \"Copy dependency dylibs:\"\n\nfor file in \"${SRCROOT}/deps/lib/\"*.dylib; do\n    name=\"$(basename \"$file\")\"\n    [[ \"$name\" == \"libmpv.2.dylib\" ]] && continue\n    dest=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/$name\"\n    cp -f \"$file\" \"$dest\"\n    if [[ \"${CODE_SIGNING_ALLOWED}\" != \"NO\" ]]; then\n        codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \"$dest\"\n    fi\ndone\n";
 		};
 		E3E720A12CD7073D003470BF /* Copy Default Plugins */ = {
 			isa = PBXShellScriptBuildPhase;
