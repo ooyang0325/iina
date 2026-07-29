@@ -225,6 +225,7 @@ typedef enum mpv_render_param_type {
      */
     MPV_RENDER_PARAM_ICC_PROFILE = 6,
     /**
+     * Deprecated
      * Ambient light in lux. Valid for mpv_render_context_set_parameter().
      * Type: int*
      * This can be used for automatic gamma correction.
@@ -421,6 +422,16 @@ typedef enum mpv_render_param_type {
      * See MPV_RENDER_PARAM_SW_STRIDE for alignment requirements.
      */
     MPV_RENDER_PARAM_SW_POINTER = 20,
+    /**
+     * The name of the render backend to use. Valid for mpv_render_context_create().
+     *
+     * Type: char*
+     *
+     * Defined backends:
+     *   "gpu" (default)
+     *   "gpu-next"
+     */
+    MPV_RENDER_PARAM_BACKEND = 21,
 } mpv_render_param_type;
 
 /**

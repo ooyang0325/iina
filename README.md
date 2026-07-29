@@ -59,6 +59,36 @@ IINA uses mpv for media playback. To build IINA, you can either fetch copies of 
 
 3. Build the project.
 
+### Building with Dolby Vision and Dolby Atmos support
+
+This fork adds Dolby Vision (profile 5/7/8, per-frame L1 and the L2/L8 creative
+trims, and profile 7 FEL enhancement-layer composition) and Dolby Atmos object
+rendering. Those capabilities do not live in IINA itself — they come from three
+upstream projects, none of which ships a release containing them yet:
+
+| Project | What it provides |
+|---|---|
+| FFmpeg (master) | the `dovi_split` bitstream filter, which separates the profile 7 enhancement layer out of the base stream |
+| libplacebo | Dolby Vision L2/L8 creative trims, and FEL composition |
+| mpv | the libmpv `gpu-next` render backend, BL+EL frame pairing, Atmos object rendering, and E-AC-3 passthrough to AVFoundation |
+
+The legacy libmpv `gpu` render backend discards Dolby Vision metadata before it
+reaches the renderer, which is why the `gpu-next` backend is required rather
+than merely preferred.
+
+To build all three from pinned sources and stage them into `deps/`:
+
+```console
+$ brew install meson ninja pkg-config nasm libass luajit uchardet \
+               libarchive libbluray little-cms2 dav1d
+$ other/build_dv_atmos_deps.sh
+```
+
+This takes a while, mostly for FFmpeg. Afterwards build IINA normally. Atmos
+*object* rendering additionally needs the `liborender` engine installed at
+runtime (see [mgth/Omniphony](https://github.com/mgth/Omniphony)); without it
+playback falls back to normal channel-based decoding.
+
 ### Building mpv manually
 
 1. Build your own copy of mpv. If you're using a package manager to manage dependencies, the steps below outline the process.

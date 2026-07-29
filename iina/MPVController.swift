@@ -677,6 +677,11 @@ class MPVController: NSObject {
       fatalError("mpvInitRendering() should be called after mpv handle being initialized!")
     }
     let apiType = UnsafeMutableRawPointer(mutating: (MPV_RENDER_API_TYPE_OPENGL as NSString).utf8String)
+    // Dolby Vision (profile 5/7/8, per-frame L1 and the L2/L8 creative trims)
+    // is only rendered by the libplacebo-based backend. The legacy 'gpu'
+    // backend strips the DV metadata back out before it ever reaches the
+    // renderer, so the base layer is displayed as plain HDR10.
+    let backend = UnsafeMutableRawPointer(mutating: ("gpu-next" as NSString).utf8String)
     var openGLInitParams = mpv_opengl_init_params(get_proc_address: mpvGetOpenGLFunc,
                                                   get_proc_address_ctx: nil)
     withUnsafeMutablePointer(to: &openGLInitParams) { openGLInitParams in
@@ -686,9 +691,24 @@ class MPVController: NSObject {
           mpv_render_param(type: MPV_RENDER_PARAM_API_TYPE, data: apiType),
           mpv_render_param(type: MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, data: openGLInitParams),
           mpv_render_param(type: MPV_RENDER_PARAM_ADVANCED_CONTROL, data: advanced),
+          mpv_render_param(type: MPV_RENDER_PARAM_BACKEND, data: backend),
           mpv_render_param()
         ]
-        chkErr(mpv_render_context_create(&mpvRenderContext, mpv, &params))
+        let status = mpv_render_context_create(&mpvRenderContext, mpv, &params)
+        if status < 0 {
+          // Losing Dolby Vision is much better than refusing to play anything,
+          // so drop back to the default backend rather than aborting.
+          log("Failed creating the gpu-next renderer (\(String(cString: mpv_error_string(status)))); " +
+              "falling back to the default backend. Dolby Vision will not be rendered.",
+              level: .warning)
+          var fallback = [
+            mpv_render_param(type: MPV_RENDER_PARAM_API_TYPE, data: apiType),
+            mpv_render_param(type: MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, data: openGLInitParams),
+            mpv_render_param(type: MPV_RENDER_PARAM_ADVANCED_CONTROL, data: advanced),
+            mpv_render_param()
+          ]
+          chkErr(mpv_render_context_create(&mpvRenderContext, mpv, &fallback))
+        }
       }
       openGLContext = CGLGetCurrentContext()
       mpv_render_context_set_update_callback(mpvRenderContext!, mpvUpdateCallback, mutableRawPointerOf(obj: player.mainWindow.videoView.videoLayer))
