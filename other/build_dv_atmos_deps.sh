@@ -89,11 +89,10 @@ fi
 # ---- mpv --------------------------------------------------------------------
 fetch mpv "$MPV_URL" "$MPV_REV"
 echo ">> building libmpv"
-( cd "$SRC/mpv" && meson setup build --prefix="$PREFIX" --buildtype=release \
-        --wipe 2>/dev/null || meson setup build --prefix="$PREFIX" --buildtype=release )
-( cd "$SRC/mpv" && meson configure build \
+( cd "$SRC/mpv" && rm -rf build \
+  && meson setup build --prefix="$PREFIX" --buildtype=release \
         -Dlibmpv=true -Dcplayer=false -Dorender=enabled \
-        -Dlua=enabled -Dlibarchive=enabled -Dlibbluray=enabled >/dev/null \
+        -Dlua=enabled -Dlibarchive=enabled -Dlibbluray=enabled \
   && meson compile -C build )
 
 # ---- stage into deps/ -------------------------------------------------------
