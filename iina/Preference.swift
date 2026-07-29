@@ -1113,7 +1113,7 @@ struct Preference {
     .enableToneMapping: false,
     .toneMappingTargetPeak: 0,
     .toneMappingAlgorithm: ToneMappingAlgorithmOption.defaultValue.rawValue,
-    .audioDriverEnableAVFoundation: false,
+    .audioDriverEnableAVFoundation: true,
     .audioThreads: 0,
     .audioLanguage: "",
     .maxVolume: 100,

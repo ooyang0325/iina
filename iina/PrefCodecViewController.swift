@@ -73,12 +73,10 @@ class PrefCodecViewController: PreferenceViewController, PreferenceWindowEmbedda
   }
 
   @IBAction func spdifBtnAction(_ sender: AnyObject) {
-    var spdif: [String] = []
-    if spdifAC3Btn.state == .on { spdif.append("ac3") }
-    if spdifDTSBtn.state == .on { spdif.append("dts") }
-    if spdifDTSHDBtn.state == .on { spdif.append("dts-hd") }
-    let spdifString = spdif.joined(separator: ",")
-    PlayerCore.playerCores.forEach { $0.mpv.setString(MPVOption.Audio.audioSpdif, spdifString) }
+    let codecs = MPVController.audioSpdifCodecs(ac3: spdifAC3Btn.state == .on,
+                                                 dts: spdifDTSBtn.state == .on,
+                                                 dtsHD: spdifDTSHDBtn.state == .on)
+    PlayerCore.playerCores.forEach { $0.mpv.setString(MPVOption.Audio.audioSpdif, codecs) }
   }
 
   @IBAction func hwdecAction(_ sender: AnyObject) {

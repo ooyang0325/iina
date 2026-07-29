@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D0B1A0022F00000000000001 /* Atmos9.1.6.yaml in Resources */ = {isa = PBXBuildFile; fileRef = D0B1A0012F00000000000001 /* Atmos9.1.6.yaml */; };
 		1326717E20852D0D000FA7E2 /* SubChooseViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 1326718020852D0D000FA7E2 /* SubChooseViewController.xib */; };
 		3412DB8E2C2FC64C00BBC142 /* Equalizations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3412DB8D2C2FC64800BBC142 /* Equalizations.swift */; };
 		3415BC8A2FC82FD9003B3FBD /* TimePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3415BC892FC82FD5003B3FBD /* TimePreviewView.swift */; };
@@ -402,6 +403,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		D0B1A0012F00000000000001 /* Atmos9.1.6.yaml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.yaml; path = Atmos9.1.6.yaml; sourceTree = "<group>"; };
 		0507C25E2B5617650043AD05 /* he */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = he; path = he.lproj/MainMenu.strings; sourceTree = "<group>"; };
 		0507C25F2B5617660043AD05 /* he */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = he; path = he.lproj/MainWindowController.strings; sourceTree = "<group>"; };
 		0507C2622B5617660043AD05 /* he */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = he; path = he.lproj/InspectorWindowController.strings; sourceTree = "<group>"; };
@@ -1839,6 +1841,7 @@
 		84A0BAA21D2FAE8200BC8DA1 /* Assets */ = {
 			isa = PBXGroup;
 			children = (
+				D0B1A0012F00000000000001 /* Atmos9.1.6.yaml */,
 				E393669923BDD1850070D626 /* IINA.entitlements */,
 				6100FF2A1EDF9806002CF0FB /* dsa_pub.pem */,
 				C78987311E34EF170005769F /* InfoPlist.strings */,
@@ -2520,6 +2523,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0B1A0022F00000000000001 /* Atmos9.1.6.yaml in Resources */,
 				8400D5E71E1AB337006785F5 /* PrefKeyBindingViewController.xib in Resources */,
 				E3DBD23F218EF4F100B3AFBF /* AboutWindowContributorAvatarItem.xib in Resources */,
 				C789872F1E34EF170005769F /* InfoPlist.strings in Resources */,

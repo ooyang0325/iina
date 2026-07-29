@@ -316,6 +316,12 @@ struct MPVOption {
     static let audioSpdif = "audio-spdif"
     /** --ad=<decoder1 */
     static let ad = "ad"
+    /** --ad-orender-channel-mode=<auto|host|spatial> */
+    static let adOrenderChannelMode = "ad-orender-channel-mode"
+    /** --ad-orender-output-channel-mapping=<auto|by-index|by-name> */
+    static let adOrenderOutputChannelMapping = "ad-orender-output-channel-mapping"
+    /** --ad-orender-speaker-layout=<path> */
+    static let adOrenderSpeakerLayout = "ad-orender-speaker-layout"
     /** --volume=<value> */
     static let volume = "volume"
     /** --volume-max=<100.0-1000.0> */

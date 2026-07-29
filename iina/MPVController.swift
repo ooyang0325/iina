@@ -312,6 +312,19 @@ class MPVController: NSObject {
     }
   }
 
+  static func audioSpdifCodecs(ac3: Bool = Preference.bool(for: PK.spdifAC3),
+                               dts: Bool = Preference.bool(for: PK.spdifDTS),
+                               dtsHD: Bool = Preference.bool(for: PK.spdifDTSHD)) -> String {
+    if Preference.bool(for: PK.audioDriverEnableAVFoundation) {
+      return "eac3"
+    }
+    var codecs: [String] = []
+    if ac3 { codecs.append("ac3") }
+    if dts { codecs.append("dts") }
+    if dtsHD { codecs.append("dts-hd") }
+    return codecs.joined(separator: ",")
+  }
+
   /**
    Init the mpv context, set options
    */
@@ -417,12 +430,19 @@ class MPVController: NSObject {
                   level: .verbose)
     setUserOption(PK.maxVolume, type: .int, forName: MPVOption.Audio.volumeMax, level: .verbose)
 
-    var spdif: [String] = []
-    if Preference.bool(for: PK.spdifAC3) { spdif.append("ac3") }
-    if Preference.bool(for: PK.spdifDTS){ spdif.append("dts") }
-    if Preference.bool(for: PK.spdifDTSHD) { spdif.append("dts-hd") }
-    chkErr(setOptionString(MPVOption.Audio.audioSpdif, spdif.joined(separator: ","),
+    let useAVFoundation = Preference.bool(for: PK.audioDriverEnableAVFoundation)
+    chkErr(setOptionString(MPVOption.Audio.audioSpdif, Self.audioSpdifCodecs(),
                            verboseIfDefault: true))
+    chkErr(setOptionString(MPVOption.Audio.ad, "orender", verboseIfDefault: true))
+    chkErr(setOptionString(MPVOption.Audio.adOrenderChannelMode, "spatial",
+                           verboseIfDefault: true))
+    chkErr(setOptionString(MPVOption.Audio.adOrenderOutputChannelMapping, "by-name",
+                           verboseIfDefault: true))
+    if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26 {
+      let layout = Bundle.main.path(forResource: "Atmos9.1.6", ofType: "yaml")!
+      chkErr(setOptionString(MPVOption.Audio.adOrenderSpeakerLayout, layout,
+                             verboseIfDefault: true))
+    }
 
     setUserOption(PK.audioDevice, type: .string, forName: MPVOption.Audio.audioDevice,
                   verboseIfDefault: true)
@@ -555,8 +575,8 @@ class MPVController: NSObject {
             "\(MPVOption.PlaybackControl.abLoopA),\(MPVOption.PlaybackControl.abLoopB)", level: .verbose))
 
     setUserOption(PK.audioDriverEnableAVFoundation, type: .other, forName: MPVOption.Audio.ao,
-                  verboseIfDefault: true) { key in
-      Preference.bool(for: key) ? "avfoundation" : "coreaudio"
+                  verboseIfDefault: true) { _ in
+      useAVFoundation ? "avfoundation" : "coreaudio"
     }
 
     // Set user defined conf dir.
