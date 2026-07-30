@@ -48,7 +48,7 @@ FFMPEG_REV="d43b1efd2e948f44cfac91f7a4325a3d927d6718"
 PLACEBO_URL="https://github.com/ooyang0325/libplacebo.git"
 PLACEBO_REV="67032e7140fcd6978f553d12013c5c647b15f103"
 MPV_URL="https://github.com/ooyang0325/mpv.git"
-MPV_REV="a3b7d0e1b"
+MPV_REV="63848bee5"
 MPEGHDEC_URL="https://github.com/Fraunhofer-IIS/mpeghdec.git"
 MPEGHDEC_REV="4448b69"
 
