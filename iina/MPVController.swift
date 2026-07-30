@@ -1089,6 +1089,10 @@ class MPVController: NSObject {
     return Int(asInt64)
   }
 
+  static func nodeValueAsOptionalInt(_ value: Any?) -> Int? {
+    (value as? Int64).map(Int.init)
+  }
+
   // MARK: - Hooks
 
   func addHook(_ name: MPVHook, priority: Int32 = 0, hook: MPVHookValue) {

@@ -80,14 +80,35 @@ class MPVTrack: NSObject {
   var isImage: Bool
   var isSelected: Bool
   var isExternal: Bool
+  var isDependent = false
+  var isVisualImpaired = false
+  var isHearingImpaired = false
+  var isOriginal = false
+  var isCommentary = false
   var externalFilename: String?
   var codec: String?
+  var codecDesc: String?
+  var codecProfile: String?
+  var codecLevel: Int?
+  var bitsPerSample: Int?
+  var ffIndex: Int?
+  var hlsBitrate: Int?
+  var programIds: [Int] = []
   var demuxW: Int?
   var demuxH: Int?
   var demuxChannelCount: Int?
   var demuxChannels: String?
   var demuxSamplerate: Int?
   var demuxFps: Double?
+  var demuxBitrate: Int?
+  var demuxRotation: Int?
+  var demuxPar: Double?
+  var demuxDuration: Double?
+  var formatName: String?
+  var dolbyVisionProfile: Int?
+  var dolbyVisionLevel: Int?
+  var hasDolbyVisionEnhancementLayer: Bool?
+  var metadata: [String: String] = [:]
 
 
   var readableTitle: String { "\(idString) \(readableString())" }
@@ -180,8 +201,21 @@ class MPVTrack: NSObject {
     title = dict["title"] as? String
     lang = dict["lang"] as? String
     codec = dict["codec"] as? String
+    codecDesc = dict["codec-desc"] as? String
+    codecProfile = dict["codec-profile"] as? String
+    codecLevel = MPVController.nodeValueAsOptionalInt(dict["codec-level"])
+    bitsPerSample = MPVController.nodeValueAsOptionalInt(dict["bits-per-sample"])
     externalFilename = dict["external-filename"] as? String
     isAlbumart = dict["albumart"] as? Bool ?? false
+    isDependent = dict["dependent"] as? Bool ?? false
+    isVisualImpaired = dict["visual-impaired"] as? Bool ?? false
+    isHearingImpaired = dict["hearing-impaired"] as? Bool ?? false
+    isOriginal = dict["original"] as? Bool ?? false
+    isCommentary = dict["commentary"] as? Bool ?? false
+    ffIndex = MPVController.nodeValueAsOptionalInt(dict["ff-index"])
+    hlsBitrate = MPVController.nodeValueAsOptionalInt(dict["hls-bitrate"])
+    programIds = (dict["program-ids"] as? [Any?] ?? [])
+      .compactMap(MPVController.nodeValueAsOptionalInt)
     decoderDesc = dict["decoder-desc"] as? String
     demuxW = MPVController.nodeValueAsInt(dict["demux-w"])
     demuxH = MPVController.nodeValueAsInt(dict["demux-h"])
@@ -189,6 +223,15 @@ class MPVTrack: NSObject {
     demuxChannelCount = MPVController.nodeValueAsInt(dict["demux-channel-count"])
     demuxChannels = dict["demux-channels"] as? String
     demuxSamplerate = MPVController.nodeValueAsInt(dict["demux-samplerate"])
+    demuxBitrate = MPVController.nodeValueAsOptionalInt(dict["demux-bitrate"])
+    demuxRotation = MPVController.nodeValueAsOptionalInt(dict["demux-rotation"])
+    demuxPar = dict["demux-par"] as? Double
+    demuxDuration = dict["demux-duration"] as? Double
+    formatName = dict["format-name"] as? String
+    dolbyVisionProfile = MPVController.nodeValueAsOptionalInt(dict["dolby-vision-profile"])
+    dolbyVisionLevel = MPVController.nodeValueAsOptionalInt(dict["dolby-vision-level"])
+    hasDolbyVisionEnhancementLayer = dict["dolby-vision-enhancement-layer"] as? Bool
+    metadata = dict["metadata"] as? [String: String] ?? [:]
   }
 
   // Utils
