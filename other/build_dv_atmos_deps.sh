@@ -19,6 +19,7 @@
 # Requires: Xcode command line tools, and from Homebrew:
 #   meson ninja pkg-config nasm libass luajit uchardet libarchive libbluray
 #   little-cms2 dav1d ffmpeg (for its own dependencies)
+#   libsoxr rubberband libopenmpt jpeg-xl libssh libdvdnav libdvdread libdvdcss
 
 set -euo pipefail
 
@@ -64,15 +65,33 @@ fetch() {
 }
 
 # ---- FFmpeg -----------------------------------------------------------------
+# Beyond the Dolby Vision work, these switches turn on decoders, filters and
+# protocols FFmpeg can build but does not by default. They are what the DSP,
+# resampling, disc and format phases of the roadmap are built on.
+FFMPEG_OPTS=(
+    --prefix="$PREFIX"
+    --enable-shared --disable-static --enable-gpl --enable-version3
+    --disable-programs --disable-doc --disable-debug
+    --enable-libdav1d --enable-videotoolbox --enable-audiotoolbox
+    --enable-libsoxr        # high quality sample rate conversion
+    --enable-librubberband  # time stretching and pitch shifting
+    --enable-libopenmpt     # tracker modules (.mod, .xm, .it, .s3m)
+    --enable-libjxl         # JPEG XL
+    --enable-libssh         # sftp:// protocol
+    --enable-libdvdnav --enable-libdvdread  # DVD demuxing
+)
 fetch ffmpeg "$FFMPEG_URL" "$FFMPEG_REV"
-if [ ! -f "$PREFIX/lib/libavcodec.dylib" ]; then
+# Rebuild when the option set changes, not just when the tree is missing, or
+# editing the switches above would silently do nothing.
+FFMPEG_STAMP="$PREFIX/.ffmpeg-configure-stamp"
+FFMPEG_HASH="$(printf '%s\n' "$FFMPEG_REV" "${FFMPEG_OPTS[@]}" | shasum -a 256 | cut -d' ' -f1)"
+if [ ! -f "$PREFIX/lib/libavcodec.dylib" ] || \
+   [ "$(cat "$FFMPEG_STAMP" 2>/dev/null)" != "$FFMPEG_HASH" ]; then
     echo ">> building FFmpeg"
-    ( cd "$SRC/ffmpeg" && ./configure --prefix="$PREFIX" \
-        --enable-shared --disable-static --enable-gpl --enable-version3 \
-        --disable-programs --disable-doc --disable-debug \
-        --enable-libdav1d --enable-videotoolbox --enable-audiotoolbox \
+    ( cd "$SRC/ffmpeg" && ./configure "${FFMPEG_OPTS[@]}" \
         --extra-cflags="-I$BREW/include" --extra-ldflags="-L$BREW/lib" \
       && make -j"$JOBS" && make install )
+    echo "$FFMPEG_HASH" > "$FFMPEG_STAMP"
 fi
 
 # ---- libplacebo -------------------------------------------------------------
@@ -93,6 +112,7 @@ echo ">> building libmpv"
   && meson setup build --prefix="$PREFIX" --buildtype=release \
         -Dlibmpv=true -Dcplayer=false -Dorender=enabled \
         -Dlua=enabled -Dlibarchive=enabled -Dlibbluray=enabled \
+        -Drubberband=enabled -Ddvdnav=enabled \
   && meson compile -C build )
 
 # ---- stage into deps/ -------------------------------------------------------
