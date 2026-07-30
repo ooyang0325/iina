@@ -118,7 +118,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
   // MARK: - Logs
   private let observedPrefKeys: [Preference.Key] = [
-    .logLevel, .thumbnailWidth, .audioDriverEnableAVFoundation, .audioExclusiveMode
+    .logLevel, .thumbnailWidth, .audioDriverEnableAVFoundation, .audioExclusiveMode,
+    .audioDsdOverPcm,
   ]
 
   override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
@@ -132,22 +133,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     case Preference.Key.thumbnailWidth.rawValue:
       ThumbnailCache.clearThumbnailCache()
 
-    // Exclusive mode and the AVFoundation driver are mutually exclusive: only Core Audio can take
-    // exclusive (hog) control of a device, and AVFoundation is the driver carrying the Dolby Atmos
-    // pipeline. The invariant is enforced here, rather than in each control, so that it holds no
-    // matter which one made the change. Each branch only ever clears the other setting, so the two
-    // cases cannot recurse into each other.
+    // DoP requires Core Audio exclusive output; AVFoundation cannot take hog mode.
     case Preference.Key.audioDriverEnableAVFoundation.rawValue:
-      guard change[.newKey] as? Bool == true, Preference.bool(for: .audioExclusiveMode) else {
-        return
+      guard change[.newKey] as? Bool == true else { return }
+      if Preference.bool(for: .audioDsdOverPcm) {
+        Logger.log("Audio driver set to AVFoundation, turning off DSD over PCM")
+        Preference.set(false, for: .audioDsdOverPcm)
       }
-      Logger.log("Audio driver set to AVFoundation, turning off audio exclusive mode")
-      Preference.set(false, for: .audioExclusiveMode)
+      if Preference.bool(for: .audioExclusiveMode) {
+        Logger.log("Audio driver set to AVFoundation, turning off audio exclusive mode")
+        Preference.set(false, for: .audioExclusiveMode)
+      }
     case Preference.Key.audioExclusiveMode.rawValue:
-      guard change[.newKey] as? Bool == true,
-            Preference.bool(for: .audioDriverEnableAVFoundation) else { return }
-      Logger.log("Audio exclusive mode enabled, switching the audio driver to Core Audio")
-      Preference.set(false, for: .audioDriverEnableAVFoundation)
+      if change[.newKey] as? Bool == true {
+        if Preference.bool(for: .audioDriverEnableAVFoundation) {
+          Logger.log("Audio exclusive mode enabled, switching the audio driver to Core Audio")
+          Preference.set(false, for: .audioDriverEnableAVFoundation)
+        }
+      } else if Preference.bool(for: .audioDsdOverPcm) {
+        Logger.log("Audio exclusive mode disabled, turning off DSD over PCM")
+        Preference.set(false, for: .audioDsdOverPcm)
+      }
+    case Preference.Key.audioDsdOverPcm.rawValue:
+      guard change[.newKey] as? Bool == true else { return }
+      Logger.log("DSD over PCM enabled, selecting Core Audio exclusive output")
+      if Preference.bool(for: .audioDriverEnableAVFoundation) {
+        Preference.set(false, for: .audioDriverEnableAVFoundation)
+      }
+      if !Preference.bool(for: .audioExclusiveMode) {
+        Preference.set(true, for: .audioExclusiveMode)
+      }
 
     default:
       return
@@ -232,11 +247,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     observedPrefKeys.forEach { key in
       UserDefaults.standard.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
     }
-    // The observers above only fire on change, so a pair already saved as invalid would survive
-    // a launch. Allowed states are Core Audio with exclusive mode either on or off, and
-    // AVFoundation with it off.
-    if Preference.bool(for: .audioDriverEnableAVFoundation),
-       Preference.bool(for: .audioExclusiveMode) {
+    // The observers above only fire on change, so repair an invalid saved combination at launch.
+    if Preference.bool(for: .audioDsdOverPcm) {
+      Preference.set(false, for: .audioDriverEnableAVFoundation)
+      Preference.set(true, for: .audioExclusiveMode)
+    } else if Preference.bool(for: .audioDriverEnableAVFoundation),
+              Preference.bool(for: .audioExclusiveMode) {
       Preference.set(false, for: .audioExclusiveMode)
     }
 

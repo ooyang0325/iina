@@ -314,7 +314,8 @@ class MPVController: NSObject {
 
   static func audioSpdifCodecs(ac3: Bool = Preference.bool(for: PK.spdifAC3),
                                dts: Bool = Preference.bool(for: PK.spdifDTS),
-                               dtsHD: Bool = Preference.bool(for: PK.spdifDTSHD)) -> String {
+                               dtsHD: Bool = Preference.bool(for: PK.spdifDTSHD),
+                               dsd: Bool = Preference.bool(for: PK.audioDsdOverPcm)) -> String {
     if Preference.bool(for: PK.audioDriverEnableAVFoundation) {
       return "eac3"
     }
@@ -322,6 +323,9 @@ class MPVController: NSObject {
     if ac3 { codecs.append("ac3") }
     if dts { codecs.append("dts") }
     if dtsHD { codecs.append("dts-hd") }
+    if dsd && Preference.bool(for: PK.audioExclusiveMode) {
+      codecs.append(contentsOf: ["dsd_lsbf", "dsd_msbf", "dsd_lsbf_planar", "dsd_msbf_planar"])
+    }
     return codecs.joined(separator: ",")
   }
 
@@ -478,14 +482,6 @@ class MPVController: NSObject {
                   level: .verbose)
     setUserOption(PK.maxVolume, type: .int, forName: MPVOption.Audio.volumeMax, level: .verbose)
 
-    // The codec list depends on the audio driver, so it is re-evaluated whenever any of its inputs
-    // change rather than being frozen at startup.
-    chkErr(setOptionString(MPVOption.Audio.audioSpdif, Self.audioSpdifCodecs(),
-                           verboseIfDefault: true))
-    for key in [PK.audioDriverEnableAVFoundation, PK.spdifAC3, PK.spdifDTS, PK.spdifDTSHD] {
-      setUserOption(key, type: .other, forName: MPVOption.Audio.audioSpdif,
-                    applyNow: false) { _ in Self.audioSpdifCodecs() }
-    }
     chkErr(setOptionString(MPVOption.Audio.ad, "orender", verboseIfDefault: true))
     chkErr(setOptionString(MPVOption.Audio.adOrenderChannelMode, "spatial",
                            verboseIfDefault: true))
@@ -520,6 +516,16 @@ class MPVController: NSObject {
     // 0 is mpv's "follow the source" value, so this binds straight through.
     setUserOption(PK.audioForcedSampleRate, type: .int, forName: MPVOption.Audio.audioSamplerate,
                   verboseIfDefault: true)
+
+    // Register this after the exclusive-output observers: enabling DoP must reopen the Core Audio
+    // output before the decoder starts sending its carrier.
+    chkErr(setOptionString(MPVOption.Audio.audioSpdif, Self.audioSpdifCodecs(),
+                           verboseIfDefault: true))
+    for key in [PK.audioDriverEnableAVFoundation, PK.audioExclusiveMode, PK.audioDsdOverPcm,
+                PK.spdifAC3, PK.spdifDTS, PK.spdifDTSHD] {
+      setUserOption(key, type: .other, forName: MPVOption.Audio.audioSpdif,
+                    applyNow: false) { _ in Self.audioSpdifCodecs() }
+    }
 
     // Resampler. The engine and its tuning are one mpv option, so it is set once and then
     // re-evaluated whenever any of the three settings behind it changes.

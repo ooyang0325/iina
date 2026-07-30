@@ -678,6 +678,8 @@
 "settings.audioDriverEnableAVFoundation.label" = "Audio driver";
 "settings.audioExclusiveMode.label" = "Exclusive mode";
 "settings.audioExclusiveMode.desc" = "Take exclusive (hog) control of the output device so that no other app can play through it, and drive the device at the source's own format. Requires the Core Audio driver.";
+"settings.audioDsdOverPcm.label" = "DSD over PCM (DoP)";
+"settings.audioDsdOverPcm.desc" = "Send raw DSD to a DoP-capable USB DAC without converting it to PCM. This automatically selects Core Audio exclusive mode and requires an exact 24- or 32-bit integer carrier rate. Unsupported devices fall back to decoded PCM. Enable only if your DAC supports DoP.";
 "settings.audioFollowSourceFormat.label" = "Match device format to source";
 "settings.audioFollowSourceFormat.desc" = "When a file is opened, set the output device to the file's own sample rate so nothing is resampled. If the device cannot reach that rate, the highest rate in a whole-number ratio is used instead, such as 96 kHz for 384 kHz audio; if there is no such rate, the highest the device offers. Bitstreamed formats are left alone. Works with either audio driver. Exclusive mode always does this.";
 "settings.audioForcedSampleRate.label" = "Output sample rate";

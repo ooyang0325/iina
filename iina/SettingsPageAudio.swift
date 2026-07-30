@@ -22,6 +22,10 @@ class SettingsPageAudio: SettingsPage {
     .bindTo(.audioFollowSourceFormat)
     .image(name: "arrow.trianglehead.2.clockwise.rotate.90")
     .hasDescription()
+  private let dsdOverPcmItem = SettingsItem.Switch()
+    .bindTo(.audioDsdOverPcm)
+    .image(name: "waveform.badge.checkmark")
+    .hasDescription()
   private var driverObserver: Any?
 
   override var identifier: String {
@@ -112,6 +116,7 @@ class SettingsPageAudio: SettingsPage {
 
       SettingsList(title: .text_BitPerfectOutput) {
         exclusiveModeItem
+        dsdOverPcmItem
         followSourceFormatItem
         SettingsItem.PopupButton()
           .image(name: "waveform.path")

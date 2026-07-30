@@ -1350,14 +1350,18 @@ private extension InspectorWindowController {
   let audioDecoder = property(controller, "current-tracks/audio/decoder")
     ?? audio?.decoderDesc
   let ao = property(controller, MPVProperty.currentAo)
+  let dop = audioOutFormat == "dop"
   let compressed = audioOutFormat?.contains("spdif") == true
+  let passthrough = compressed || dop
   let avPlayerRoute = ao == "avfoundation" && compressed && audio?.codec == "eac3"
   let route: String? = avPlayerRoute ? "AVPlayer fMP4/HLS" :
     audioPipeline?.hasPrefix("liborender") == true ? "liborender → \(ao ?? "audio output")" :
+    dop ? "DoP → \(ao ?? "audio output")" :
     compressed ? "\(ao ?? "audio output") compressed passthrough" :
     ao == "avfoundation" ? "AVSampleBufferAudioRenderer" : ao
   let transport: String? = audio == nil ? nil :
     avPlayerRoute ? "Compressed E-AC-3/JOC" :
+    dop ? "DSD over PCM (DoP 1.1)" :
     compressed ? "IEC 61937 compressed" : "Decoded PCM"
 
   setDiagnostic("g.audio.codec", join([audio?.codecDesc, audio?.codec]))
@@ -1373,7 +1377,8 @@ private extension InspectorWindowController {
   ]))
   let losslessCodecs = ["truehd", "flac", "alac", "ape", "wavpack"]
   let lossless = audio.map {
-    losslessCodecs.contains($0.codec ?? "") || ($0.codec == "dts" && ($0.codecProfile?.contains("MA") == true))
+    losslessCodecs.contains($0.codec ?? "") || $0.codec?.hasPrefix("dsd_") == true ||
+      ($0.codec == "dts" && ($0.codecProfile?.contains("MA") == true))
   }
   setDiagnostic("g.audio.loss", lossless.map { $0 ? "Lossless" : "Lossy" })
 
@@ -1412,9 +1417,10 @@ private extension InspectorWindowController {
   })
   setDiagnostic("g.output.delay", property(controller, "audio-device-delay").map { "\($0) s" })
 
-  let processing = audioProcessing(controller, compressed: compressed)
+  let processing = audioProcessing(controller, compressed: passthrough)
   let lossy = processing.filter { !$0.hasSuffix(losslessMarkerValue()) }
   setDiagnostic("g.output.signal", audio == nil ? nil :
+    dop ? "Bit-perfect DoP · raw DSD reaches the device unchanged" :
     compressed ? "Bitstream passthrough · the device receives the encoded stream" :
     !lossy.isEmpty ? "Processed · sample values are altered before the device" :
     processing.isEmpty ? "Bit-perfect · decoder output reaches the device unaltered" :

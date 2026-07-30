@@ -195,6 +195,8 @@ struct Preference {
     static let audioExclusiveMode = Key("audioExclusiveMode")
     /// Reprogram the device's physical stream format to match the source. Core Audio driver only.
     static let audioFollowSourceFormat = Key("audioFollowSourceFormat")
+    /// Send raw DSD as DoP through a compatible DAC. Requires Core Audio exclusive mode.
+    static let audioDsdOverPcm = Key("audioDsdOverPcm")
     /// Resample everything to this rate in Hz, or 0 to follow the source.
     static let audioForcedSampleRate = Key("audioForcedSampleRate")
     /// Resampling engine: 0 = libswresample's own, 1 = SoX.
@@ -1130,6 +1132,7 @@ struct Preference {
     .audioDriverEnableAVFoundation: true,
     .audioExclusiveMode: false,
     .audioFollowSourceFormat: false,
+    .audioDsdOverPcm: false,
     .audioForcedSampleRate: 0,
     .audioResampleEngine: 0,
     .audioResampleSoxrPrecision: 28,
@@ -1398,6 +1401,7 @@ struct Preference {
            .alwaysOpenInNewWindow,
            .alwaysShowOnTopIcon,
            .audioDriverEnableAVFoundation,
+           .audioDsdOverPcm,
            .audioExclusiveMode,
            .audioFollowSourceFormat,
            .audioNormalizeDownmix,
