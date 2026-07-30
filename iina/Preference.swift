@@ -191,6 +191,12 @@ struct Preference {
     static let toneMappingAlgorithm = Key("toneMappingAlgorithm")
 
     static let audioDriverEnableAVFoundation = Key("audioDriverEnableAVFoundation")
+    /// Take exclusive (hog) control of the output device. Core Audio driver only.
+    static let audioExclusiveMode = Key("audioExclusiveMode")
+    /// Reprogram the device's physical stream format to match the source. Core Audio driver only.
+    static let audioFollowSourceFormat = Key("audioFollowSourceFormat")
+    /// Resample everything to this rate in Hz, or 0 to follow the source.
+    static let audioForcedSampleRate = Key("audioForcedSampleRate")
     static let audioThreads = Key("audioThreads")
     static let audioLanguage = Key("audioLanguage")
     static let maxVolume = Key("maxVolume")
@@ -1114,6 +1120,9 @@ struct Preference {
     .toneMappingTargetPeak: 0,
     .toneMappingAlgorithm: ToneMappingAlgorithmOption.defaultValue.rawValue,
     .audioDriverEnableAVFoundation: true,
+    .audioExclusiveMode: false,
+    .audioFollowSourceFormat: false,
+    .audioForcedSampleRate: 0,
     .audioThreads: 0,
     .audioLanguage: "",
     .maxVolume: 100,
@@ -1377,6 +1386,8 @@ struct Preference {
            .alwaysOpenInNewWindow,
            .alwaysShowOnTopIcon,
            .audioDriverEnableAVFoundation,
+           .audioExclusiveMode,
+           .audioFollowSourceFormat,
            .autoRepeat,
            .autoSearchOnlineSub,
            .autoSwitchToMusicMode,

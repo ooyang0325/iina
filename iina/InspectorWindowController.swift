@@ -659,6 +659,8 @@ private extension InspectorWindowController {
         ("g.output.layout", "Output layout"),
         ("g.output.spatial", "Spatial layout"),
         ("g.output.delay", "Output delay"),
+        ("g.output.signal", "Signal path"),
+        ("g.output.processing", "Processing"),
       ]),
     ]
   }
@@ -1409,6 +1411,60 @@ private extension InspectorWindowController {
     return "\(count) channels · \($0)"
   })
   setDiagnostic("g.output.delay", property(controller, "audio-device-delay").map { "\($0) s" })
+
+  let processing = audioProcessing(controller, compressed: compressed)
+  setDiagnostic("g.output.signal", audio == nil ? nil :
+    compressed ? "Bitstream passthrough · the device receives the encoded stream" :
+    processing.isEmpty ? "Bit-perfect PCM · decoder output reaches the device unaltered" :
+    "Processed · altered between the decoder and the device")
+  setDiagnostic("g.output.processing", audio == nil ? nil :
+    processing.isEmpty ? "None" : processing.joined(separator: " · "))
+}
+
+/// Everything between the decoder and the output device that alters the samples. An empty result
+/// means the decoder's output reaches the device untouched.
+///
+/// mpv applies volume, gain and ReplayGain as a software multiply over the sample buffer
+/// (`ao_set_gain` / `process_plane`), which it skips only when the combined gain is exactly 1, so
+/// any of those being off their neutral value really does change the data.
+func audioProcessing(_ controller: MPVController, compressed: Bool) -> [String] {
+  // A passthrough stream is opaque; nothing in the chain can touch it.
+  guard !compressed else { return [] }
+  var reasons: [String] = []
+
+  if let input = propertyInt(controller, MPVProperty.audioParamsSamplerate),
+     let output = propertyInt(controller, "audio-out-params/samplerate"), input != output {
+    reasons.append("resampled \(input) → \(output) Hz")
+  }
+  if let input = property(controller, MPVProperty.audioParamsFormat),
+     let output = property(controller, "audio-out-params/format"), input != output {
+    reasons.append("converted \(input) → \(output)")
+  }
+  if let input = propertyInt(controller, MPVProperty.audioParamsChannelCount),
+     let output = propertyInt(controller, "audio-out-params/channel-count"), input != output {
+    reasons.append("\(input > output ? "downmixed" : "upmixed") \(input) → \(output) ch")
+  }
+  let filters = controller.getFilters(MPVProperty.af)
+  if !filters.isEmpty {
+    reasons.append(join(filters.map(\.name), separator: ", ").map { "filters: \($0)" }
+                   ?? "\(filters.count) audio filter(s)")
+  }
+  if property(controller, MPVOption.Audio.replaygain).map({ $0 != "no" }) == true {
+    reasons.append("ReplayGain")
+  } else if let fallback = propertyDouble(controller, MPVOption.Audio.replaygainFallback),
+            fallback != 0 {
+    reasons.append(String(format: "ReplayGain fallback %+.1f dB", fallback))
+  }
+  if let volume = propertyDouble(controller, MPVOption.Audio.volume), volume != 100 {
+    reasons.append(String(format: "software volume %.0f%%", volume))
+  }
+  if let gain = propertyDouble(controller, MPVOption.Audio.volumeGain), gain != 0 {
+    reasons.append(String(format: "gain %+.1f dB", gain))
+  }
+  if property(controller, MPVOption.Audio.mute).map({ $0 == "yes" }) == true {
+    reasons.append("muted")
+  }
+  return reasons
 }
 
 func audioDeviceName(_ controller: MPVController) -> String? {

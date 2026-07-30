@@ -306,6 +306,8 @@ struct MPVOption {
     static let audioDevice = "audio-device"
     /** --audio-exclusive=<yes|no> */
     static let audioExclusive = "audio-exclusive"
+    /// `ao_coreaudio` sub-option: reprogram the device's physical stream format to match the source.
+    static let coreaudioChangePhysicalFormat = "coreaudio-change-physical-format"
     /** --audio-fallback-to-null=<yes|no> */
     static let audioFallbackToNull = "audio-fallback-to-null"
     /** --ao=<driver> */

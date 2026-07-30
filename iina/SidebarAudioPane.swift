@@ -13,6 +13,8 @@ class SidebarAudioPane: SidebarScrollView {
   let prefObserver = Preference.Observer()
   weak var player: PlayerCore!
 
+  private let exclusiveModeSwitch = NSSwitch()
+
   init(player: PlayerCore) {
     self.player = player
     super.init(frame: .zero)
@@ -40,6 +42,22 @@ class SidebarAudioPane: SidebarScrollView {
       $0.padding(.all(.sidebarContainerPadding))
     })
 
+    exclusiveModeSwitch.controlSize = .small
+    exclusiveModeSwitch.target = self
+    exclusiveModeSwitch.action = #selector(exclusiveModeAction)
+    stack.addArrangedSubview(Container(ui.hStack(
+      ui.image("lock.laptopcomputer", "lock", size: 20, config: .sidebarIconConfig),
+      ui.label("sidebar.exclusive_mode"),
+      ui.flexibleSpace(),
+      exclusiveModeSwitch
+    )) {
+      $0.padding(.all(.sidebarContainerPadding))
+    })
+    // The switch can also be driven from the Settings window.
+    prefObserver.add(.audioExclusiveMode, runNow: true) { [unowned self] _ in
+      exclusiveModeSwitch.state = Preference.bool(for: .audioExclusiveMode) ? .on : .off
+    }
+
     stack.addArrangedSubview(Container(AudioDelayView(player: player)) {
       $0.padding(.all(.sidebarContainerPadding))
     })
@@ -50,6 +68,15 @@ class SidebarAudioPane: SidebarScrollView {
 
     documentView!.addSubview(stack)
     stack.padding(.horizontal(.sidebarMargin), .top(4), .bottom(.sidebarMargin))
+  }
+
+  /// Turning this on switches the driver to Core Audio (enforced as an invariant in `AppDelegate`);
+  /// turning it off hands playback back to AVFoundation and its Dolby Atmos pipeline. `--ao` is
+  /// runtime changeable, so neither takes reopening the file.
+  @objc private func exclusiveModeAction(_ sender: NSSwitch) {
+    let enabled = sender.state == .on
+    Preference.set(enabled, for: .audioExclusiveMode)
+    Preference.set(!enabled, for: PK.audioDriverEnableAVFoundation)
   }
 
   @objc private func loadExternalAudioAction(_ sender: NSButton) {

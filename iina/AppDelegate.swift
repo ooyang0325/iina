@@ -110,7 +110,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   }
 
   // MARK: - Logs
-  private let observedPrefKeys: [Preference.Key] = [.logLevel, .thumbnailWidth]
+  private let observedPrefKeys: [Preference.Key] = [
+    .logLevel, .thumbnailWidth, .audioDriverEnableAVFoundation, .audioExclusiveMode
+  ]
 
   override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
     guard let keyPath = keyPath, let change = change else { return }
@@ -122,6 +124,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       }
     case Preference.Key.thumbnailWidth.rawValue:
       ThumbnailCache.clearThumbnailCache()
+
+    // Exclusive mode and the AVFoundation driver are mutually exclusive: only Core Audio can take
+    // exclusive (hog) control of a device, and AVFoundation is the driver carrying the Dolby Atmos
+    // pipeline. The invariant is enforced here, rather than in each control, so that it holds no
+    // matter which one made the change. Each branch only ever clears the other setting, so the two
+    // cases cannot recurse into each other.
+    case Preference.Key.audioDriverEnableAVFoundation.rawValue:
+      guard change[.newKey] as? Bool == true, Preference.bool(for: .audioExclusiveMode) else {
+        return
+      }
+      Logger.log("Audio driver set to AVFoundation, turning off audio exclusive mode")
+      Preference.set(false, for: .audioExclusiveMode)
+    case Preference.Key.audioExclusiveMode.rawValue:
+      guard change[.newKey] as? Bool == true,
+            Preference.bool(for: .audioDriverEnableAVFoundation) else { return }
+      Logger.log("Audio exclusive mode enabled, switching the audio driver to Core Audio")
+      Preference.set(false, for: .audioDriverEnableAVFoundation)
 
     default:
       return
@@ -205,6 +224,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
     observedPrefKeys.forEach { key in
       UserDefaults.standard.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
+    }
+    // The observers above only fire on change, so a pair already saved as invalid would survive
+    // a launch. Allowed states are Core Audio with exclusive mode either on or off, and
+    // AVFoundation with it off.
+    if Preference.bool(for: .audioDriverEnableAVFoundation),
+       Preference.bool(for: .audioExclusiveMode) {
+      Preference.set(false, for: .audioExclusiveMode)
     }
 
     // Start the log file by logging the version of IINA producing the log file.

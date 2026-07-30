@@ -553,6 +553,7 @@
 "sidebar.sidebar" = "Sidebar";
 "sidebar.sidebar_position" = "Sidebar Position";
 "sidebar.compact_interface" = "Compact Interface";
+"sidebar.exclusive_mode" = "Exclusive Mode";
 "sidebar.edge_to_edge_video" = "Edge-to-Edge Video";
 "sidebar.lock_window_aspect" = "Lock Window Aspect Ratio";
 "sidebar.docked" = "Docked Control Bar and Titlebar";
@@ -675,6 +676,19 @@
 "settings.audioDriverEnableAVFoundation.items.0.desc" = "The default audio driver.";
 "settings.audioDriverEnableAVFoundation.items.1.desc" = "AVFoundation is a new, experimental audio driver offering Spatial Audio support. However, you may encounter some issues when using AVFoundation, such as audio delays.";
 "settings.audioDriverEnableAVFoundation.label" = "Audio driver";
+"settings.audioExclusiveMode.label" = "Exclusive mode";
+"settings.audioExclusiveMode.desc" = "Take exclusive (hog) control of the output device so that no other app can play through it, and drive the device at the source's own format. Requires the Core Audio driver.";
+"settings.audioFollowSourceFormat.label" = "Match device format to source";
+"settings.audioFollowSourceFormat.desc" = "Reprogram the device's physical sample rate and bit depth to match the file being played, avoiding resampling. Requires the Core Audio driver. Exclusive mode always does this.";
+"settings.audioForcedSampleRate.label" = "Output sample rate";
+"settings.audioForcedSampleRate.desc" = "Resample all audio to a fixed rate. Leave on Follow source for bit-perfect output.";
+"settings.audioForcedSampleRate.items.0" = "Follow source";
+"settings.audioForcedSampleRate.items.44100" = "44.1 kHz";
+"settings.audioForcedSampleRate.items.48000" = "48 kHz";
+"settings.audioForcedSampleRate.items.88200" = "88.2 kHz";
+"settings.audioForcedSampleRate.items.96000" = "96 kHz";
+"settings.audioForcedSampleRate.items.176400" = "176.4 kHz";
+"settings.audioForcedSampleRate.items.192000" = "192 kHz";
 "settings.enableInitialVolume.label" = "Initial volume";
 "settings.gaplessAudio.desc" = "Gapless audio";
 "settings.gaplessAudio.items.0" = "Disabled";
@@ -929,6 +943,7 @@
 "settings.$GetBrowserExtensionsForIINA" = "Get Browser Extensions for IINA";
 "settings.$GetPlugins" = "Get Plugins…";
 "settings.$Hardware" = "Hardware";
+"settings.$BitPerfectOutput" = "Bit-perfect output";
 "settings.$Height" = "Height";
 "settings.$Help" = "Help";
 "settings.$History" = "History";

@@ -325,6 +325,21 @@ class MPVController: NSObject {
     return codecs.joined(separator: ",")
   }
 
+  /// The value for a Core Audio only option, honouring the configured audio output driver.
+  ///
+  /// `--audio-exclusive` redirects the output to `ao_coreaudio_exclusive`, and
+  /// `--coreaudio-change-physical-format` is a sub-option of `ao_coreaudio`. Neither has any
+  /// meaning under the AVFoundation driver, which is the one carrying the Dolby Atmos pipeline
+  /// and which cannot take exclusive control of a device. Both are therefore reported as disabled
+  /// whenever AVFoundation is selected, no matter what the preference says, so that the user's
+  /// choice is preserved for when they switch back.
+  static func coreAudioOnly(
+    _ key: Preference.Key,
+    enabled: Bool = !Preference.bool(for: PK.audioDriverEnableAVFoundation)
+  ) -> String {
+    enabled && Preference.bool(for: key) ? "yes" : "no"
+  }
+
   /**
    Init the mpv context, set options
    */
@@ -430,9 +445,14 @@ class MPVController: NSObject {
                   level: .verbose)
     setUserOption(PK.maxVolume, type: .int, forName: MPVOption.Audio.volumeMax, level: .verbose)
 
-    let useAVFoundation = Preference.bool(for: PK.audioDriverEnableAVFoundation)
+    // The codec list depends on the audio driver, so it is re-evaluated whenever any of its inputs
+    // change rather than being frozen at startup.
     chkErr(setOptionString(MPVOption.Audio.audioSpdif, Self.audioSpdifCodecs(),
                            verboseIfDefault: true))
+    for key in [PK.audioDriverEnableAVFoundation, PK.spdifAC3, PK.spdifDTS, PK.spdifDTSHD] {
+      setUserOption(key, type: .other, forName: MPVOption.Audio.audioSpdif,
+                    applyNow: false) { _ in Self.audioSpdifCodecs() }
+    }
     chkErr(setOptionString(MPVOption.Audio.ad, "orender", verboseIfDefault: true))
     chkErr(setOptionString(MPVOption.Audio.adOrenderChannelMode, "spatial",
                            verboseIfDefault: true))
@@ -445,6 +465,24 @@ class MPVController: NSObject {
     }
 
     setUserOption(PK.audioDevice, type: .string, forName: MPVOption.Audio.audioDevice,
+                  verboseIfDefault: true)
+
+    // Bit-perfect output. Both options are also observed on the audio driver key so that switching
+    // drivers at runtime re-evaluates them, whichever order the observers happen to fire in.
+    // See coreAudioOnly(_:).
+    setUserOption(PK.audioExclusiveMode, type: .other, forName: MPVOption.Audio.audioExclusive,
+                  verboseIfDefault: true) { _ in Self.coreAudioOnly(.audioExclusiveMode) }
+    setUserOption(PK.audioDriverEnableAVFoundation, type: .other,
+                  forName: MPVOption.Audio.audioExclusive,
+                  applyNow: false) { _ in Self.coreAudioOnly(.audioExclusiveMode) }
+    setUserOption(PK.audioFollowSourceFormat, type: .other,
+                  forName: MPVOption.Audio.coreaudioChangePhysicalFormat,
+                  verboseIfDefault: true) { _ in Self.coreAudioOnly(.audioFollowSourceFormat) }
+    setUserOption(PK.audioDriverEnableAVFoundation, type: .other,
+                  forName: MPVOption.Audio.coreaudioChangePhysicalFormat,
+                  applyNow: false) { _ in Self.coreAudioOnly(.audioFollowSourceFormat) }
+    // 0 is mpv's "follow the source" value, so this binds straight through.
+    setUserOption(PK.audioForcedSampleRate, type: .int, forName: MPVOption.Audio.audioSamplerate,
                   verboseIfDefault: true)
 
     setUserOption(PK.replayGain, type: .other, forName: MPVOption.Audio.replaygain,
@@ -575,8 +613,10 @@ class MPVController: NSObject {
             "\(MPVOption.PlaybackControl.abLoopA),\(MPVOption.PlaybackControl.abLoopB)", level: .verbose))
 
     setUserOption(PK.audioDriverEnableAVFoundation, type: .other, forName: MPVOption.Audio.ao,
-                  verboseIfDefault: true) { _ in
-      useAVFoundation ? "avfoundation" : "coreaudio"
+                  verboseIfDefault: true) { key in
+      // Must read the setting rather than close over a value captured during mpvInit, or changing
+      // the driver at runtime would keep reapplying whichever one was selected at startup.
+      Preference.bool(for: key) ? "avfoundation" : "coreaudio"
     }
 
     // Set user defined conf dir.
@@ -1692,11 +1732,15 @@ class MPVController: NSObject {
   ///   - type: Type of the value of the mpv option.
   ///   - name: Name of the mpv option.
   ///   - sync: Whether to add an observer for the IINA setting that updates the mpv option when the IINA setting changes.
+  ///   - applyNow: Whether to set the option immediately. Pass `false` when an option is derived from
+  ///           several settings and has already been set, to observe the remaining keys without
+  ///           setting the same value again.
   ///   - level: Log level to use when logging the setting of the option.
   ///   - verboseIfDefault: Whether to use log level `verbose` if the value matches the default for the mpv option.
   ///   - transformer: Optional transformer that changes the IINA setting value to be usable as the mpv option value.
   private func setUserOption(_ key: Preference.Key, type: UserOptionType, forName name: String,
-                             sync: Bool = true, level: Logger.Level = .debug,
+                             sync: Bool = true, applyNow: Bool = true,
+                             level: Logger.Level = .debug,
                              verboseIfDefault: Bool = false,
                              transformer: OptionObserverInfo.Transformer? = nil) {
     var code: Int32 = 0
@@ -1704,6 +1748,9 @@ class MPVController: NSObject {
     let keyRawValue = key.rawValue
 
     switch type {
+    case _ where !applyNow:
+      break
+
     case .int:
       code = setOptionInt(name, Preference.integer(for: key), level: level,
                           verboseIfDefault: verboseIfDefault)
@@ -1747,9 +1794,12 @@ class MPVController: NSObject {
     }
 
     if sync {
-      UserDefaults.standard.addObserver(self, forKeyPath: keyRawValue, options: [.new, .old], context: nil)
+      // A preference key may drive more than one mpv option, but KVO must only be registered
+      // once per key or removeOptionObservers() will leave a registration behind.
       if optionObservers[keyRawValue] == nil {
         optionObservers[keyRawValue] = []
+        UserDefaults.standard.addObserver(self, forKeyPath: keyRawValue, options: [.new, .old],
+                                          context: nil)
       }
       optionObservers[keyRawValue]!.append(OptionObserverInfo(key, name, type, transformer))
     }

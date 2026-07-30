@@ -12,6 +12,18 @@ fileprivate let ui = SettingsUIHelper.sharedUI
 class SettingsPageAudio: SettingsPage {
   private lazy var audioOutputDeviceView: AudioOutputDeviceView = AudioOutputDeviceView()
 
+  /// Exclusive mode and physical format following are Core Audio features, so they are greyed out
+  /// while the AVFoundation driver (which carries the Dolby Atmos pipeline) is selected.
+  private let exclusiveModeItem = SettingsItem.Switch()
+    .bindTo(.audioExclusiveMode)
+    .image(name: "lock.laptopcomputer")
+    .hasDescription()
+  private let followSourceFormatItem = SettingsItem.Switch()
+    .bindTo(.audioFollowSourceFormat)
+    .image(name: "arrow.trianglehead.2.clockwise.rotate.90")
+    .hasDescription()
+  private var driverObserver: Any?
+
   override var identifier: String {
     "audio"
   }
@@ -34,6 +46,29 @@ class SettingsPageAudio: SettingsPage {
       sectionVolume()
       sectionOther()
     }
+  }
+
+  override func pageLoaded() {
+    updateCoreAudioOnlyItems()
+    guard driverObserver == nil else { return }
+    driverObserver = NotificationCenter.default.addObserver(
+      forName: UserDefaults.didChangeNotification, object: UserDefaults.standard, queue: .main
+    ) { [weak self] _ in
+      self?.updateCoreAudioOnlyItems()
+    }
+  }
+
+  deinit {
+    if let driverObserver {
+      NotificationCenter.default.removeObserver(driverObserver)
+    }
+  }
+
+  private func updateCoreAudioOnlyItems() {
+    let coreAudio = !Preference.bool(for: PK.audioDriverEnableAVFoundation)
+    // nsSwitch is only built once the page's views are made.
+    exclusiveModeItem.nsSwitch?.isEnabled = coreAudio
+    followSourceFormatItem.nsSwitch?.isEnabled = coreAudio
   }
 
   private func sectionHardware() -> SettingsSection {
@@ -72,6 +107,15 @@ class SettingsPageAudio: SettingsPage {
             SettingsItem.Switch()
               .bindTo(.spdifDTSHD)
           }
+      }
+
+      SettingsList(title: .text_BitPerfectOutput) {
+        exclusiveModeItem
+        followSourceFormatItem
+        SettingsItem.PopupButton()
+          .image(name: "waveform.path")
+          .bindTo(.audioForcedSampleRate, ofType: ForcedSampleRate.self)
+          .hasDescription()
       }
     }
   }
@@ -139,8 +183,7 @@ class SettingsPageAudio: SettingsPage {
 }
 
 
-fileprivate enum AudioDriver: Int, InitializingFromKey, CaseIterable {
-  case coreAudio = 0
+fileprivate enum AudioDriver: Int, InitializingFromKey, CaseIterable {  case coreAudio = 0
   case avFoundation
 
   static var defaultValue = AudioDriver.coreAudio
@@ -154,6 +197,29 @@ fileprivate enum AudioDriver: Int, InitializingFromKey, CaseIterable {
     case .coreAudio: "coreAudio"
     case .avFoundation: "avFoundation"
     }
+  }
+}
+
+
+/// Raw values are the sample rate in Hz, which is exactly what `--audio-samplerate` takes. 0 is
+/// mpv's "follow the source" value.
+fileprivate enum ForcedSampleRate: Int, InitializingFromKey, CaseIterable {
+  case auto = 0
+  case hz44100 = 44100
+  case hz48000 = 48000
+  case hz88200 = 88200
+  case hz96000 = 96000
+  case hz176400 = 176400
+  case hz192000 = 192000
+
+  static var defaultValue = ForcedSampleRate.auto
+
+  init?(key: Preference.Key) {
+    self.init(rawValue: Preference.integer(for: key))
+  }
+
+  var description: String {
+    self == .auto ? "auto" : "\(rawValue)"
   }
 }
 
