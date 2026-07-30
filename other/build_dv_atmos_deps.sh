@@ -14,7 +14,14 @@
 #              BL+EL frame pairing, Atmos object rendering via liborender, and
 #              E-AC-3 passthrough to AVFoundation.
 #
-# Usage:  other/build_dv_atmos_deps.sh [--prefix DIR] [--jobs N]
+# Usage:  other/build_dv_atmos_deps.sh [--prefix DIR] [--jobs N] [--mpegh]
+#
+#   --mpegh  Add Fraunhofer's MPEG-H 3D Audio decoder. FFmpeg classifies
+#            libmpeghdec as nonfree, so this forces --enable-nonfree, and the
+#            resulting binaries CANNOT BE REDISTRIBUTED. It is also mutually
+#            exclusive with FFmpeg's GPL components, so the build loses
+#            librubberband, libdvdnav and libdvdread. Use it for a local build
+#            only, never for anything published.
 #
 # Requires: Xcode command line tools, and from Homebrew:
 #   meson ninja pkg-config nasm libass luajit uchardet libarchive libbluray
@@ -27,6 +34,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PREFIX="$REPO_ROOT/deps/build/prefix"
 SRC="$REPO_ROOT/deps/build/src"
 JOBS="$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+# MPEG-H 3D Audio is off by default. FFmpeg classifies libmpeghdec as nonfree,
+# alongside libfdk_aac and decklink, so enabling it forces --enable-nonfree,
+# which makes the resulting binaries unredistributable, and --disable-gpl,
+# which drops librubberband, libdvdnav and libdvdread. Fine for a local build,
+# not for anything published. See --help.
+MPEGH=0
 
 # Pinned revisions. These are the exact trees the shipped build was made from;
 # all three projects move fast, so floating them will eventually break.
@@ -36,19 +49,22 @@ PLACEBO_URL="https://github.com/ooyang0325/libplacebo.git"
 PLACEBO_REV="67032e7140fcd6978f553d12013c5c647b15f103"
 MPV_URL="https://github.com/ooyang0325/mpv.git"
 MPV_REV="bda1b5e76"
+MPEGHDEC_URL="https://github.com/Fraunhofer-IIS/mpeghdec.git"
+MPEGHDEC_REV="4448b69"
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --prefix) PREFIX="$2"; shift 2 ;;
         --jobs)   JOBS="$2"; shift 2 ;;
-        -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+        --mpegh)  MPEGH=1; shift ;;
+        -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 1 ;;
     esac
 done
 
 BREW="$(brew --prefix)"
 export PKG_CONFIG="${PKG_CONFIG:-$BREW/bin/pkg-config}"
-export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$BREW/opt/libarchive/lib/pkgconfig:$BREW/lib/pkgconfig"
+export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig:$BREW/opt/libarchive/lib/pkgconfig:$BREW/lib/pkgconfig"
 
 mkdir -p "$SRC" "$PREFIX"
 
@@ -64,22 +80,53 @@ fetch() {
     git -C "$dir" -c advice.detachedHead=false checkout --quiet "$rev"
 }
 
+# ---- Fraunhofer MPEG-H 3D Audio decoder -------------------------------------
+# FFmpeg has no MPEG-H decoder of its own, so this supplies one. Only built
+# when --mpegh is passed, because FFmpeg treats it as nonfree; see the note at
+# the top of this file. Fraunhofer's own licence permits redistribution in
+# binary form without fee provided the licence text travels with it and the
+# source stays available free of charge, which deps/licenses/ and the pinned
+# URL above cover. It grants no patent licence, separately from the copyright.
+if [ "$MPEGH" = 1 ]; then
+    fetch mpeghdec "$MPEGHDEC_URL" "$MPEGHDEC_REV"
+    if [ ! -f "$PREFIX/share/pkgconfig/mpeghdec.pc" ]; then
+        echo ">> building libmpeghdec"
+        # MacPorts ships a cmake that cannot run on this machine, so be explicit.
+        ( cd "$SRC/mpeghdec" && "$BREW/bin/cmake" -S . -B build \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
+          && "$BREW/bin/cmake" --build build -j"$JOBS" \
+          && "$BREW/bin/cmake" --install build )
+    fi
+    mkdir -p "$REPO_ROOT/deps/licenses"
+    cp "$SRC/mpeghdec/LICENSE.txt" "$REPO_ROOT/deps/licenses/mpeghdec-LICENSE.txt"
+fi
+
 # ---- FFmpeg -----------------------------------------------------------------
 # Beyond the Dolby Vision work, these switches turn on decoders, filters and
 # protocols FFmpeg can build but does not by default. They are what the DSP,
 # resampling, disc and format phases of the roadmap are built on.
 FFMPEG_OPTS=(
     --prefix="$PREFIX"
-    --enable-shared --disable-static --enable-gpl --enable-version3
+    --enable-shared --disable-static --enable-version3
     --disable-programs --disable-doc --disable-debug
     --enable-libdav1d --enable-videotoolbox --enable-audiotoolbox
     --enable-libsoxr        # high quality sample rate conversion
-    --enable-librubberband  # time stretching and pitch shifting
     --enable-libopenmpt     # tracker modules (.mod, .xm, .it, .s3m)
     --enable-libjxl         # JPEG XL
     --enable-libssh         # sftp:// protocol
-    --enable-libdvdnav --enable-libdvdread  # DVD demuxing
 )
+if [ "$MPEGH" = 1 ]; then
+    echo "!! building a NONFREE, UNREDISTRIBUTABLE FFmpeg for MPEG-H 3D Audio"
+    echo "!! this build has no rubberband and no DVD support"
+    FFMPEG_OPTS+=(--enable-nonfree --enable-libmpeghdec)
+else
+    FFMPEG_OPTS+=(
+        --enable-gpl
+        --enable-librubberband  # time stretching and pitch shifting
+        --enable-libdvdnav --enable-libdvdread  # DVD demuxing
+    )
+fi
 fetch ffmpeg "$FFMPEG_URL" "$FFMPEG_REV"
 # Rebuild when the option set changes, not just when the tree is missing, or
 # editing the switches above would silently do nothing.
@@ -108,11 +155,18 @@ fi
 # ---- mpv --------------------------------------------------------------------
 fetch mpv "$MPV_URL" "$MPV_REV"
 echo ">> building libmpv"
+# mpv gates dvdnav behind its own -Dgpl, and rubberband needs the library the
+# nonfree FFmpeg build drops, so both follow the same switch as above.
+if [ "$MPEGH" = 1 ]; then
+    MPV_GPL_OPTS=(-Dgpl=false -Drubberband=disabled -Ddvdnav=disabled)
+else
+    MPV_GPL_OPTS=(-Drubberband=enabled -Ddvdnav=enabled)
+fi
 ( cd "$SRC/mpv" && rm -rf build \
   && meson setup build --prefix="$PREFIX" --buildtype=release \
         -Dlibmpv=true -Dcplayer=false -Dorender=enabled \
         -Dlua=enabled -Dlibarchive=enabled -Dlibbluray=enabled \
-        -Drubberband=enabled -Ddvdnav=enabled \
+        "${MPV_GPL_OPTS[@]}" \
   && meson compile -C build )
 
 # ---- stage into deps/ -------------------------------------------------------
@@ -132,13 +186,21 @@ ruby "$REPO_ROOT/other/change_lib_dependencies.rb" "$BREW" \
 # change_lib_dependencies.rb only rewrites Homebrew-prefixed dependencies, so
 # anything from our own prefix (FFmpeg, libplacebo) is still absolute. Walk the
 # graph to closure and make every non-system reference @rpath-relative.
-python3 - "$REPO_ROOT/deps/lib" <<'PY'
+python3 - "$REPO_ROOT/deps/lib" "$PREFIX/lib" "$BREW/lib" <<'PY'
 import os, subprocess, shutil, sys
-os.chdir(sys.argv[1])
+staged, search = sys.argv[1], sys.argv[2:]
+os.chdir(staged)
 
 def deps(f):
     out = subprocess.run(['otool', '-L', f], capture_output=True, text=True)
+    # Skip the first line (the file name) and the second (the library's own ID).
     return [l.strip().split(' ')[0] for l in out.stdout.splitlines()[1:] if l.strip()]
+
+def bundle(src, base):
+    shutil.copy2(src, base)
+    os.chmod(base, 0o755)
+    subprocess.run(['install_name_tool', '-id', '@rpath/' + base, base], capture_output=True)
+    print('   bundled', base)
 
 changed, rounds = True, 0
 while changed and rounds < 16:
@@ -147,30 +209,46 @@ while changed and rounds < 16:
         if not f.endswith('.dylib'):
             continue
         for d in deps(f):
-            if d.startswith(('@rpath', '/usr/lib', '/System')):
-                continue
             base = os.path.basename(d)
+            if d.startswith(('/usr/lib', '/System')):
+                continue
+            # A library built with @rpath install names of its own, such as libjxl
+            # referring to libjxl_cms, needs its dependency bundled too even though the
+            # reference itself is already relative and needs no rewriting.
+            if d.startswith('@rpath'):
+                if not os.path.exists(base):
+                    found = next((os.path.join(p, base) for p in search
+                                  if os.path.exists(os.path.join(p, base))), None)
+                    if not found:
+                        print('!! missing on disk:', d)
+                        continue
+                    bundle(found, base)
+                    changed = True
+                continue
             if not os.path.exists(base):
                 if not os.path.exists(d):
                     print('!! missing on disk:', d)
                     continue
-                shutil.copy2(d, base)
-                os.chmod(base, 0o755)
-                subprocess.run(['install_name_tool', '-id', '@rpath/' + base, base],
-                               capture_output=True)
-                print('   bundled', base)
+                bundle(d, base)
             subprocess.run(['install_name_tool', '-change', d, '@rpath/' + base, f],
                            capture_output=True)
             changed = True
 
-# Anything still absolute would fail to load out of the .app bundle.
+# Anything still absolute, or referred to but never bundled, would fail to load
+# out of the .app bundle. The second case is the one that bit libjxl_cms: the
+# reference looked fine because it was already @rpath, but the file was absent.
 bad = 0
+present = set(os.listdir('.'))
 for f in sorted(os.listdir('.')):
-    if f.endswith('.dylib'):
-        for d in deps(f):
-            if not d.startswith(('@rpath', '/usr/lib', '/System')):
-                print('!! unrelocated:', f, '->', d)
-                bad += 1
+    if not f.endswith('.dylib'):
+        continue
+    for d in deps(f):
+        if not d.startswith(('@rpath', '/usr/lib', '/System')):
+            print('!! unrelocated:', f, '->', d)
+            bad += 1
+        elif d.startswith('@rpath') and os.path.basename(d) not in present:
+            print('!! not bundled:', f, '->', d)
+            bad += 1
 sys.exit(1 if bad else 0)
 PY
 

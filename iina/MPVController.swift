@@ -340,6 +340,19 @@ class MPVController: NSObject {
     enabled && Preference.bool(for: key) ? "yes" : "no"
   }
 
+  /// AVOptions for libswresample, which is what mpv resamples with.
+  ///
+  /// Returns an empty string for the default engine so that mpv keeps its own defaults rather
+  /// than having them restated here. The SoX engine has to be asked for explicitly, and its
+  /// precision and passband settings mean nothing to the other one.
+  static func audioResampleOptions() -> String {
+    guard Preference.integer(for: .audioResampleEngine) == 1 else { return "" }
+    var options = ["resampler=soxr",
+                   "precision=\(Preference.integer(for: .audioResampleSoxrPrecision))"]
+    if Preference.bool(for: .audioResampleSoxrCheby) { options.append("cheby=1") }
+    return options.joined(separator: ",")
+  }
+
   /**
    Init the mpv context, set options
    */
@@ -484,6 +497,17 @@ class MPVController: NSObject {
     // 0 is mpv's "follow the source" value, so this binds straight through.
     setUserOption(PK.audioForcedSampleRate, type: .int, forName: MPVOption.Audio.audioSamplerate,
                   verboseIfDefault: true)
+
+    // Resampler. The engine and its tuning are one mpv option, so it is set once and then
+    // re-evaluated whenever any of the three settings behind it changes.
+    chkErr(setOptionString(MPVOption.AudioResampler.audioSwresampleO, Self.audioResampleOptions(),
+                           verboseIfDefault: true))
+    for key in [PK.audioResampleEngine, PK.audioResampleSoxrPrecision, PK.audioResampleSoxrCheby] {
+      setUserOption(key, type: .other, forName: MPVOption.AudioResampler.audioSwresampleO,
+                    applyNow: false) { _ in Self.audioResampleOptions() }
+    }
+    setUserOption(PK.audioNormalizeDownmix, type: .bool,
+                  forName: MPVOption.AudioResampler.audioNormalizeDownmix, verboseIfDefault: true)
 
     setUserOption(PK.replayGain, type: .other, forName: MPVOption.Audio.replaygain,
                   verboseIfDefault: true) { key in

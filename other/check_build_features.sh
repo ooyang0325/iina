@@ -46,30 +46,47 @@ ff()  { want "$FFMPEG_LIBS" "CONFIG_$1" "${2:-}"; }
 ffc() { want "$FFMPEG_CFG"  "CONFIG_$1" "${2:-}"; }
 mpv() { want "$MPV_CFG"     "HAVE_$1"   "${2:-}"; }
 
+# The nonfree MPEG-H build and the redistributable GPL one have different
+# expected feature sets, so check whichever was actually built rather than
+# reporting the other one's components as missing.
+if grep -q '^#define CONFIG_NONFREE 1$' "$FFMPEG_LIBS"; then
+    BUILD=nonfree
+    echo "build: NONFREE (MPEG-H 3D Audio) -- these binaries cannot be redistributed"
+else
+    BUILD=gpl
+    echo "build: GPL (redistributable)"
+fi
+
 section "FFmpeg external libraries"
 ff LIBDAV1D     "AV1 decoding"
 ff LIBSOXR      "high quality resampling"
-ff LIBRUBBERBAND "time stretch and pitch shift"
 ff LIBOPENMPT   "tracker modules"
 ff LIBJXL       "JPEG XL"
 ff LIBSSH       "sftp:// protocol"
-ff LIBDVDNAV    "DVD navigation"
-ff LIBDVDREAD   "DVD reading"
 ff VIDEOTOOLBOX "hardware video decoding"
 ff AUDIOTOOLBOX "system audio decoders"
+if [ "$BUILD" = gpl ]; then
+    ff LIBRUBBERBAND "time stretch and pitch shift"
+    ff LIBDVDNAV    "DVD navigation"
+    ff LIBDVDREAD   "DVD reading"
+else
+    ff LIBMPEGHDEC  "MPEG-H 3D Audio"
+fi
 
 section "FFmpeg audio DSP (the DSP rack is built from these)"
 for f in ANEQUALIZER FIREQUALIZER SUPEREQUALIZER EQUALIZER AFIR CROSSFEED \
          HEADPHONE LOUDNORM PAN CHANNELMAP ARESAMPLE ADELAY SURROUND \
-         ACOMPRESSOR ALIMITER RUBBERBAND; do
+         ACOMPRESSOR ALIMITER; do
     ffc "${f}_FILTER"
 done
+[ "$BUILD" = gpl ] && ffc RUBBERBAND_FILTER
 
 section "FFmpeg audio decoders"
 for d in DSD_MSBF DSD_LSBF DSD_MSBF_PLANAR DSD_LSBF_PLANAR DST WAVPACK TAK APE \
          TTA SHORTEN ALAC FLAC OPUS QOA MLP TRUEHD DCA EAC3 AC3; do
     ffc "${d}_DECODER"
 done
+[ "$BUILD" = nonfree ] && ffc LIBMPEGHDEC_DECODER "MPEG-H 3D Audio"
 
 section "FFmpeg video decoders"
 for d in VVC HEVC AV1 LIBDAV1D LIBJXL; do
@@ -77,17 +94,20 @@ for d in VVC HEVC AV1 LIBDAV1D LIBJXL; do
 done
 
 section "FFmpeg demuxers"
-for d in DSF DVDVIDEO LIBOPENMPT; do
+for d in DSF LIBOPENMPT; do
     ffc "${d}_DEMUXER"
 done
+[ "$BUILD" = gpl ] && ffc DVDVIDEO_DEMUXER
 
 section "mpv"
 mpv COREAUDIO    "shared and exclusive Core Audio output"
 mpv AVFOUNDATION "Dolby Atmos output"
 mpv ORENDER      "object audio rendering"
 mpv LIBBLURAY    "Blu-ray"
-mpv DVDNAV       "DVD navigation"
-mpv RUBBERBAND   "af_rubberband"
+if [ "$BUILD" = gpl ]; then
+    mpv DVDNAV   "DVD navigation"
+    mpv RUBBERBAND "af_rubberband"
+fi
 mpv LIBARCHIVE   "archives"
 mpv LUA          "scripting"
 mpv UCHARDET     "subtitle charset detection"

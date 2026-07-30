@@ -689,6 +689,19 @@
 "settings.audioForcedSampleRate.items.96000" = "96 kHz";
 "settings.audioForcedSampleRate.items.176400" = "176.4 kHz";
 "settings.audioForcedSampleRate.items.192000" = "192 kHz";
+"settings.audioResampleEngine.label" = "Resampling engine";
+"settings.audioResampleEngine.desc" = "Used whenever audio has to change sample rate. SoX is slower but has a steeper filter and lower distortion; it only runs if resampling actually happens, so it costs nothing on bit-perfect output.";
+"settings.audioResampleEngine.items.0" = "Default";
+"settings.audioResampleEngine.items.1" = "SoX";
+"settings.audioResampleSoxrPrecision.label" = "Precision";
+"settings.audioResampleSoxrPrecision.desc" = "Bits of resampling accuracy. 20 is SoX's own default, 28 suits 24-bit material, 33 is the maximum and is beyond what any DAC resolves.";
+"settings.audioResampleSoxrPrecision.items.20" = "20-bit";
+"settings.audioResampleSoxrPrecision.items.28" = "28-bit";
+"settings.audioResampleSoxrPrecision.items.33" = "33-bit";
+"settings.audioResampleSoxrCheby.label" = "Chebyshev passband";
+"settings.audioResampleSoxrCheby.desc" = "Flattens the passband and approximates awkward rate ratios more accurately, at the cost of a little more pre-ringing.";
+"settings.audioNormalizeDownmix.label" = "Normalize downmix";
+"settings.audioNormalizeDownmix.desc" = "Scale surround audio down when it is folded to fewer channels so that it cannot clip. Leaving this off keeps the level but may distort loud passages.";
 "settings.enableInitialVolume.label" = "Initial volume";
 "settings.gaplessAudio.desc" = "Gapless audio";
 "settings.gaplessAudio.items.0" = "Disabled";
@@ -944,6 +957,7 @@
 "settings.$GetPlugins" = "Get Plugins…";
 "settings.$Hardware" = "Hardware";
 "settings.$BitPerfectOutput" = "Bit-perfect output";
+"settings.$Resampler" = "Resampler";
 "settings.$Height" = "Height";
 "settings.$Help" = "Help";
 "settings.$History" = "History";

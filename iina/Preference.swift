@@ -197,6 +197,14 @@ struct Preference {
     static let audioFollowSourceFormat = Key("audioFollowSourceFormat")
     /// Resample everything to this rate in Hz, or 0 to follow the source.
     static let audioForcedSampleRate = Key("audioForcedSampleRate")
+    /// Resampling engine: 0 = libswresample's own, 1 = SoX.
+    static let audioResampleEngine = Key("audioResampleEngine")
+    /// SoX resampling precision in bits, 15...33.
+    static let audioResampleSoxrPrecision = Key("audioResampleSoxrPrecision")
+    /// SoX Chebyshev passband, which trades a flatter passband for more ringing.
+    static let audioResampleSoxrCheby = Key("audioResampleSoxrCheby")
+    /// Scale a surround downmix so it cannot clip, at the cost of level.
+    static let audioNormalizeDownmix = Key("audioNormalizeDownmix")
     static let audioThreads = Key("audioThreads")
     static let audioLanguage = Key("audioLanguage")
     static let maxVolume = Key("maxVolume")
@@ -1123,6 +1131,10 @@ struct Preference {
     .audioExclusiveMode: false,
     .audioFollowSourceFormat: false,
     .audioForcedSampleRate: 0,
+    .audioResampleEngine: 0,
+    .audioResampleSoxrPrecision: 28,
+    .audioResampleSoxrCheby: false,
+    .audioNormalizeDownmix: false,
     .audioThreads: 0,
     .audioLanguage: "",
     .maxVolume: 100,
@@ -1388,6 +1400,8 @@ struct Preference {
            .audioDriverEnableAVFoundation,
            .audioExclusiveMode,
            .audioFollowSourceFormat,
+           .audioNormalizeDownmix,
+           .audioResampleSoxrCheby,
            .autoRepeat,
            .autoSearchOnlineSub,
            .autoSwitchToMusicMode,

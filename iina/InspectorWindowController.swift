@@ -1434,7 +1434,11 @@ func audioProcessing(_ controller: MPVController, compressed: Bool) -> [String] 
 
   if let input = propertyInt(controller, MPVProperty.audioParamsSamplerate),
      let output = propertyInt(controller, "audio-out-params/samplerate"), input != output {
-    reasons.append("resampled \(input) → \(output) Hz")
+    // Name the engine only when it is actually resampling, since that is the only time the
+    // setting has any effect.
+    let engine = property(controller, MPVOption.AudioResampler.audioSwresampleO)?
+      .contains("resampler=soxr") == true ? "soxr" : "swr"
+    reasons.append("resampled \(input) → \(output) Hz (\(engine))")
   }
   if let input = property(controller, MPVProperty.audioParamsFormat),
      let output = property(controller, "audio-out-params/format"), input != output {

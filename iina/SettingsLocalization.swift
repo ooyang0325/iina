@@ -91,6 +91,7 @@ extension SettingsLocalization.Key {
   static let text_dB = SettingsLocalization.Key("$dB")
   static let text_Hardware = SettingsLocalization.Key("$Hardware")
   static let text_BitPerfectOutput = SettingsLocalization.Key("$BitPerfectOutput")
+  static let text_Resampler = SettingsLocalization.Key("$Resampler")
   static let text_AudioOther = SettingsLocalization.Key("$Other")
   static let text_Volume = SettingsLocalization.Key("$Volume")
 

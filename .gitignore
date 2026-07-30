@@ -113,4 +113,6 @@ browser/Firefox_Open_In_IINA/*
 
 deps/executable/youtube-dl
 deps/plugins
+# Populated by other/build_dv_atmos_deps.sh --mpegh, alongside the binary it covers.
+deps/licenses
 

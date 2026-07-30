@@ -117,6 +117,26 @@ class SettingsPageAudio: SettingsPage {
           .bindTo(.audioForcedSampleRate, ofType: ForcedSampleRate.self)
           .hasDescription()
       }
+
+      SettingsList(title: .text_Resampler) {
+        SettingsItem.PopupButton()
+          .image(name: "arrow.left.arrow.right")
+          .bindTo(.audioResampleEngine, ofType: ResampleEngine.self)
+          .disableSubListOnTag(ResampleEngine.swr.rawValue)
+          .hasDescription()
+          .withDetailView {
+            SettingsItem.PopupButton()
+              .bindTo(.audioResampleSoxrPrecision, ofType: SoxrPrecision.self)
+              .hasDescription()
+            SettingsItem.Switch()
+              .bindTo(.audioResampleSoxrCheby)
+              .hasDescription()
+          }
+        SettingsItem.Switch()
+          .image(name: "arrow.trianglehead.merge")
+          .bindTo(.audioNormalizeDownmix)
+          .hasDescription()
+      }
     }
   }
 
@@ -221,6 +241,43 @@ fileprivate enum ForcedSampleRate: Int, InitializingFromKey, CaseIterable {
   var description: String {
     self == .auto ? "auto" : "\(rawValue)"
   }
+}
+
+
+/// libswresample's engines. Raw values are IINA's own, mapped to `resampler=` in
+/// `MPVController.audioResampleOptions()`.
+fileprivate enum ResampleEngine: Int, InitializingFromKey, CaseIterable {
+  case swr = 0
+  case soxr
+
+  static var defaultValue = ResampleEngine.swr
+
+  init?(key: Preference.Key) {
+    self.init(rawValue: Preference.integer(for: key))
+  }
+
+  var description: String {
+    switch self {
+    case .swr: "swr"
+    case .soxr: "soxr"
+    }
+  }
+}
+
+
+/// Raw values are soxr's `precision` in bits, which is what libswresample takes.
+fileprivate enum SoxrPrecision: Int, InitializingFromKey, CaseIterable {
+  case bits20 = 20
+  case bits28 = 28
+  case bits33 = 33
+
+  static var defaultValue = SoxrPrecision.bits28
+
+  init?(key: Preference.Key) {
+    self.init(rawValue: Preference.integer(for: key))
+  }
+
+  var description: String { "\(rawValue)" }
 }
 
 
