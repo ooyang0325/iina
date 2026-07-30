@@ -830,11 +830,14 @@ private extension InspectorWindowController {
 
       let scrollView = NSScrollView()
       scrollView.translatesAutoresizingMaskIntoConstraints = false
-      scrollView.drawsBackground = false
+      // The cards are layer-backed, which exposes the window's clear background
+      // unless the page draws one of its own.
+      scrollView.drawsBackground = true
+      scrollView.backgroundColor = .windowBackgroundColor
       scrollView.hasVerticalScroller = true
       scrollView.autohidesScrollers = true
 
-      let documentView = NSView()
+      let documentView = FlippedView()
       documentView.translatesAutoresizingMaskIntoConstraints = false
       let stack = NSStackView()
       stack.translatesAutoresizingMaskIntoConstraints = false
@@ -918,6 +921,12 @@ private extension InspectorWindowController {
     title.textColor = .secondaryLabelColor
     addFullWidth(title, to: container)
 
+    let rows = NSStackView()
+    rows.translatesAutoresizingMaskIntoConstraints = false
+    rows.orientation = .vertical
+    rows.alignment = .leading
+    rows.spacing = 6
+
     let gridRows = section.rows.map { row -> NSView in
       let label = NSTextField(labelWithString: row.label)
       label.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
@@ -946,9 +955,11 @@ private extension InspectorWindowController {
     }
 
     for line in gridRows {
-      addFullWidth(line, to: container)
+      addFullWidth(line, to: rows)
     }
-    container.setCustomSpacing(6, after: title)
+
+    let card = InspectorSectionCard(content: rows)
+    addFullWidth(card, to: container)
     return container
   }
 
@@ -967,14 +978,14 @@ private extension InspectorWindowController {
     watchTableContainerView.translatesAutoresizingMaskIntoConstraints = false
     addFullWidth(watchTableContainerView, to: container)
 
-    deleteButton.removeFromSuperview()
-    // The XIB button is the round "−"; drop the glyph so the title is readable.
-    deleteButton.image = nil
-    deleteButton.imagePosition = .noImage
-    deleteButton.bezelStyle = .rounded
-    deleteButton.title = "Remove"
+    // The XIB's delete button is a small square "−" whose own width == height
+    // constraint truncates a title, so use a plain titled button instead.
+    let removeButton = NSButton(title: "Remove", target: self,
+                                action: #selector(removeWatchAction(_:)))
+    removeButton.isEnabled = false
+    deleteButton = removeButton
     let addButton = NSButton(title: "Add", target: self, action: #selector(addWatchAction(_:)))
-    let buttons = NSStackView(views: [addButton, deleteButton])
+    let buttons = NSStackView(views: [addButton, removeButton])
     buttons.orientation = .horizontal
     buttons.spacing = 8
     addFullWidth(buttons, to: container)
@@ -997,6 +1008,41 @@ private extension InspectorWindowController {
     }.joined(separator: "\n")
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(text, forType: .string)
+  }
+}
+
+/// Grouped content card, styled like the boxes on IINA's settings pages so the
+/// Inspector matches the rest of the app on macOS 26.
+private class InspectorSectionCard: NSView {
+  init(content: NSView) {
+    super.init(frame: .zero)
+    translatesAutoresizingMaskIntoConstraints = false
+    wantsLayer = true
+    layer?.cornerRadius = if #available(macOS 26, *) { 12 } else { 4 }
+    layer?.borderWidth = 1
+    addSubview(content)
+    content.padding(.horizontal(14), .vertical(12))
+    applyColors()
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func viewDidChangeEffectiveAppearance() {
+    applyColors()
+  }
+
+  private func applyColors() {
+    effectiveAppearance.performAsCurrentDrawingAppearance {
+      if effectiveAppearance.isDark {
+        layer?.borderColor = NSColor.separatorColor.cgColor
+        layer?.backgroundColor = NSColor.underPageBackgroundColor.cgColor
+      } else {
+        layer?.borderColor = NSColor.black.withAlphaComponent(0.05).cgColor
+        layer?.backgroundColor = NSColor.black.withAlphaComponent(0.02).cgColor
+      }
+    }
   }
 }
 
