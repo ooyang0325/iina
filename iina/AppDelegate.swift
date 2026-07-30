@@ -11,7 +11,14 @@ import MediaPlayer
 import Sparkle
 
 let IINA_ENABLE_PLUGIN_SYSTEM = true
-let IINA_ENABLE_NEW_SETTINGS = UserDefaults.standard.bool(forKey: "enableNewSettings")
+/// Whether ⌘, opens the current settings window rather than the older one.
+///
+/// Upstream leaves this off while the new window is finished. This fork turns it on because its
+/// own settings, the bit-perfect output and resampler sections, exist only there, so leaving it
+/// off would ship controls that cannot be reached. Set `enableNewSettings` to false to go back to
+/// the older window, at the cost of those sections.
+let IINA_ENABLE_NEW_SETTINGS =
+  UserDefaults.standard.object(forKey: "enableNewSettings") as? Bool ?? true
 
 /** Max time interval for repeated `application(_:openFile:)` calls. */
 fileprivate let OpenFileRepeatTime = TimeInterval(0.2)
