@@ -1893,6 +1893,32 @@ class MPVController: NSObject {
         }
       }
     }
+
+    // Changing the audio driver changes four options at once, and mpv's reload_audio_output()
+    // starts with `if (!mpctx->ao) return;`. The first of those options tears the output down, so
+    // every reload after it, including the one for the driver itself, does nothing, and mpv is
+    // left with no audio output at all: silent, position frozen, and unrecoverable except by
+    // seeking, which is what finally rebuilds the chain. Rebuild it here instead, once all four
+    // options are in place.
+    // Changing the audio driver changes four options at once, and mpv's reload_audio_output()
+    // starts with `if (!mpctx->ao) return;`. The first of those options tears the output down, so
+    // every reload after it, including the one for the driver itself, does nothing, and mpv is
+    // left with no audio output at all: silent, with the position frozen. A zero length exact
+    // seek is what rebuilds the chain, which is why seeking by hand was the only way out; do it
+    // here so the switch simply works. The position does not move.
+    if keyPath == PK.audioDriverEnableAVFoundation.rawValue {
+      log("Audio driver changed, rebuilding the audio chain")
+      DispatchQueue.main.async { [self] in
+        guard player.info.state.active else { return }
+        command(.seek, args: ["0", "relative+exact"], checkError: false)
+      }
+    }
+    // These decide what the device should be running at, and mpv emits no reconfigure of its own
+    // when only the preference changed, so re-evaluate here.
+    if keyPath == PK.audioForcedSampleRate.rawValue ||
+       keyPath == PK.audioFollowSourceFormat.rawValue {
+      DispatchQueue.main.async { [self] in player.matchDeviceRateToSource() }
+    }
   }
 
   // MARK: - Utils

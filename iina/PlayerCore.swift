@@ -1303,23 +1303,42 @@ class PlayerCore: NSObject {
           // A compressed stream has to reach the receiver at the rate it was encoded at, and mpv
           // reports that rate as the output rate, so leave passthrough alone.
           mpv.getString("audio-out-params/format")?.contains("spdif") != true,
-          let sourceRate = mpv.getString(MPVProperty.audioParamsSamplerate).flatMap(Double.init),
-          sourceRate > 0,
           let device = AudioDeviceControl.defaultOutputDevice,
           let current = AudioDeviceControl.rate(of: device) else { return }
 
+    // Match the rate mpv is actually delivering, which is not the source rate when a fixed output
+    // rate is set: with that set the resampler has already done its work and the device should run
+    // at its output, or the samples would be converted a second time by Core Audio.
+    let forced = Preference.integer(for: .audioForcedSampleRate)
+    let wanted = forced > 0
+      ? Double(forced)
+      : mpv.getString(MPVProperty.audioParamsSamplerate).flatMap(Double.init) ?? 0
+    guard wanted > 0 else { return }
+
     let available = AudioDeviceControl.availableRates(of: device)
-    guard let target = AudioDeviceControl.bestRate(for: sourceRate, from: available),
+    // Doing nothing when the device is already right is what stops this repeating: the reload
+    // below causes another reconfigure, which lands here again and finds nothing left to do.
+    guard let target = AudioDeviceControl.bestRate(for: wanted, from: available),
           abs(target - current) >= 1 else { return }
 
     if originalDeviceRate == nil || originalDeviceRate?.device != device {
       originalDeviceRate = (device, current)
     }
-    let matched = AudioDeviceControl.setRate(target, of: device)
-    log("""
-        Matching output device to source: \(Int(sourceRate)) Hz source, device \(Int(current)) \
-        -> \(Int(target)) Hz\(matched ? "" : " (device refused)")
-        """)
+    // Setting the rate waits on the hardware, so keep it off the main thread. It also pulls the
+    // device out from under whatever is playing on it, so the output is rebuilt afterwards rather
+    // than left running against a device that changed beneath it.
+    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+      let matched = AudioDeviceControl.setRate(target, of: device)
+      DispatchQueue.main.async {
+        guard let self, self.info.state.active else { return }
+        self.log("""
+            Matching output device to source: \(Int(wanted)) Hz output, device \(Int(current)) \
+            -> \(Int(target)) Hz\(matched ? "" : " (device refused)")
+            """)
+        guard matched else { return }
+        self.mpv.command(.audioReload, args: [], checkError: false)
+      }
+    }
   }
 
   /// Hand the output device back at the rate it was found at.
