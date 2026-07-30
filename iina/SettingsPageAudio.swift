@@ -65,10 +65,11 @@ class SettingsPageAudio: SettingsPage {
   }
 
   private func updateCoreAudioOnlyItems() {
-    let coreAudio = !Preference.bool(for: PK.audioDriverEnableAVFoundation)
-    // nsSwitch is only built once the page's views are made.
-    exclusiveModeItem.nsSwitch?.isEnabled = coreAudio
-    followSourceFormatItem.nsSwitch?.isEnabled = coreAudio
+    // Exclusive mode is the only Core Audio only control here. Matching the device to the source
+    // now works under either driver, since the nominal sample rate is set through the hardware
+    // layer rather than through the output driver.
+    exclusiveModeItem.nsSwitch?.isEnabled =
+      !Preference.bool(for: PK.audioDriverEnableAVFoundation)
   }
 
   private func sectionHardware() -> SettingsSection {

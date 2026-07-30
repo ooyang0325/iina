@@ -353,6 +353,26 @@ class MPVController: NSObject {
     return options.joined(separator: ",")
   }
 
+  /// The value for `--audio-device`, resolving `auto` to a concrete device under exclusive mode.
+  ///
+  /// mpv's `auto` means "whatever is default when the output opens". That is fine until exclusive
+  /// mode is involved: taking hog mode makes macOS move the default output to some other device,
+  /// so the next time the output is reopened, which any of a sample rate change, a track change or
+  /// a format change will do, `auto` resolves to that other device and the player hogs the wrong
+  /// one. Pinning the device the moment exclusive mode is set up breaks the loop.
+  ///
+  /// Only `auto` is rewritten; a device the user picked explicitly is already immune. The
+  /// preference itself is left alone, so turning exclusive mode off goes back to following the
+  /// system default.
+  static func audioDevice() -> String {
+    let configured = Preference.string(for: .audioDevice) ?? "auto"
+    guard configured == "auto",
+          Preference.bool(for: PK.audioExclusiveMode),
+          !Preference.bool(for: PK.audioDriverEnableAVFoundation),
+          let uid = AudioDeviceControl.defaultOutputDeviceUID else { return configured }
+    return "coreaudio/\(uid)"
+  }
+
   /**
    Init the mpv context, set options
    */
@@ -477,8 +497,11 @@ class MPVController: NSObject {
                              verboseIfDefault: true))
     }
 
-    setUserOption(PK.audioDevice, type: .string, forName: MPVOption.Audio.audioDevice,
-                  verboseIfDefault: true)
+    setUserOption(PK.audioDevice, type: .other, forName: MPVOption.Audio.audioDevice,
+                  verboseIfDefault: true) { _ in Self.audioDevice() }
+    // Exclusive mode changes which device `auto` resolves to, so re-evaluate on it too.
+    setUserOption(PK.audioExclusiveMode, type: .other, forName: MPVOption.Audio.audioDevice,
+                  applyNow: false) { _ in Self.audioDevice() }
 
     // Bit-perfect output. Both options are also observed on the audio driver key so that switching
     // drivers at runtime re-evaluates them, whichever order the observers happen to fire in.
@@ -1234,7 +1257,8 @@ class MPVController: NSObject {
         handlePropertyChange(propertyName, property)
       }
 
-    case MPV_EVENT_AUDIO_RECONFIG: break
+    case MPV_EVENT_AUDIO_RECONFIG:
+      DispatchQueue.main.async { self.player.onAudioReconfig() }
 
     case MPV_EVENT_VIDEO_RECONFIG:
       DispatchQueue.main.async { self.player.onVideoReconfig() }

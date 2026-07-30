@@ -679,7 +679,7 @@
 "settings.audioExclusiveMode.label" = "Exclusive mode";
 "settings.audioExclusiveMode.desc" = "Take exclusive (hog) control of the output device so that no other app can play through it, and drive the device at the source's own format. Requires the Core Audio driver.";
 "settings.audioFollowSourceFormat.label" = "Match device format to source";
-"settings.audioFollowSourceFormat.desc" = "When a file is opened, reprogram the device's physical sample rate and bit depth to match it, so nothing is resampled. If the device cannot reach the file's rate, the highest rate in a whole-number ratio is used instead, such as 96 kHz for 384 kHz audio; if there is no such rate, the highest the device offers. Bitstreamed formats are left alone. Requires the Core Audio driver. Exclusive mode always does this.";
+"settings.audioFollowSourceFormat.desc" = "When a file is opened, set the output device to the file's own sample rate so nothing is resampled. If the device cannot reach that rate, the highest rate in a whole-number ratio is used instead, such as 96 kHz for 384 kHz audio; if there is no such rate, the highest the device offers. Bitstreamed formats are left alone. Works with either audio driver. Exclusive mode always does this.";
 "settings.audioForcedSampleRate.label" = "Output sample rate";
 "settings.audioForcedSampleRate.desc" = "Resample all audio to a fixed rate. Leave on Follow source for bit-perfect output.";
 "settings.audioForcedSampleRate.items.0" = "Follow source";

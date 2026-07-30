@@ -1413,16 +1413,47 @@ private extension InspectorWindowController {
   setDiagnostic("g.output.delay", property(controller, "audio-device-delay").map { "\($0) s" })
 
   let processing = audioProcessing(controller, compressed: compressed)
+  let lossy = processing.filter { !$0.hasSuffix(losslessMarkerValue()) }
   setDiagnostic("g.output.signal", audio == nil ? nil :
     compressed ? "Bitstream passthrough · the device receives the encoded stream" :
-    processing.isEmpty ? "Bit-perfect PCM · decoder output reaches the device unaltered" :
-    "Processed · altered between the decoder and the device")
+    !lossy.isEmpty ? "Processed · sample values are altered before the device" :
+    processing.isEmpty ? "Bit-perfect · decoder output reaches the device unaltered" :
+    "Bit-perfect · sample values preserved, container widened for the device")
   setDiagnostic("g.output.processing", audio == nil ? nil :
     processing.isEmpty ? "None" : processing.joined(separator: " · "))
 }
 
+/// Suffix marking a step that changes how samples are stored but not what they are.
+private func losslessMarkerValue() -> String { " (lossless)" }
+
+/// Whether every value in `input` survives `output` exactly.
+///
+/// Widening never loses anything, and a 32-bit float carries a 24-bit mantissa, so it represents
+/// every 8, 16 and 24-bit integer sample exactly. This matters because a device often accepts only
+/// float: Apple silicon built-in output, for one, offers nothing but 32-bit float, so mpv must
+/// convert and no amount of configuration will stop it. That conversion is not a loss of quality
+/// and should not be reported as one.
+func isLosslessAudioConversion(from input: String, to output: String) -> Bool {
+  /// Bits actually carried by a sample format, and whether it is floating point.
+  func depth(_ format: String) -> (bits: Int, isFloat: Bool)? {
+    switch format.replacingOccurrences(of: "p", with: "") {  // planar carries the same values
+    case "u8", "s8": return (8, false)
+    case "s16": return (16, false)
+    case "s32": return (32, false)
+    case "float": return (24, true)   // mantissa, which is what bounds exact integer range
+    case "double": return (53, true)
+    default: return nil
+    }
+  }
+  guard let from = depth(input), let to = depth(output) else { return false }
+  // Float to integer needs rounding whatever the width, so it is never exact.
+  if from.isFloat && !to.isFloat { return false }
+  return to.bits >= from.bits
+}
+
 /// Everything between the decoder and the output device that alters the samples. An empty result
-/// means the decoder's output reaches the device untouched.
+/// means the decoder's output reaches the device untouched. Steps that change only how samples are
+/// stored are marked, so the caller can tell a genuine loss from a required container change.
 ///
 /// mpv applies volume, gain and ReplayGain as a software multiply over the sample buffer
 /// (`ao_set_gain` / `process_plane`), which it skips only when the combined gain is exactly 1, so
@@ -1442,7 +1473,8 @@ func audioProcessing(_ controller: MPVController, compressed: Bool) -> [String] 
   }
   if let input = property(controller, MPVProperty.audioParamsFormat),
      let output = property(controller, "audio-out-params/format"), input != output {
-    reasons.append("converted \(input) → \(output)")
+    let lossless = isLosslessAudioConversion(from: input, to: output)
+    reasons.append("converted \(input) → \(output)" + (lossless ? losslessMarkerValue() : ""))
   }
   if let input = propertyInt(controller, MPVProperty.audioParamsChannelCount),
      let output = propertyInt(controller, "audio-out-params/channel-count"), input != output {

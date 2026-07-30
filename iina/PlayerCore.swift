@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import CoreAudio
 
 class PlayerCore: NSObject {
 
@@ -733,6 +734,7 @@ class PlayerCore: NSObject {
     let suffix = isMPVInitiated ? " (initiated by mpv)" : ""
     log("Player has shutdown\(suffix)")
     info.state = .shutDown
+    restoreDeviceRate()
     if isMPVInitiated {
       // The user must have used mpv's IPC interface to send a quit command directly to mpv. Must
       // perform the actions that were skipped when IINA's normal shutdown process was bypassed.
@@ -1282,6 +1284,54 @@ class PlayerCore: NSObject {
   var usesHardwareVolume: Bool {
     mpv.getString(MPVProperty.currentAo) == "coreaudio_exclusive"
       && mpv.getString(MPVProperty.aoVolume) != nil
+  }
+
+  /// The device rate before this player last changed it, so it can be handed back as found.
+  private var originalDeviceRate: (device: AudioDeviceID, rate: Double)?
+
+  /// Run the output device at the source's own rate, for output drivers that cannot do it
+  /// themselves.
+  ///
+  /// The Core Audio driver has `--coreaudio-change-physical-format` and exclusive mode always
+  /// reprograms the stream, so both are left to mpv. AVFoundation has no equivalent, which
+  /// previously meant the driver carrying the Dolby Atmos pipeline was also the one that could not
+  /// avoid resampling. A device's nominal sample rate is a hardware layer property though, so it
+  /// can be set from here whichever driver is playing, and without exclusive access or hog mode.
+  func matchDeviceRateToSource() {
+    guard Preference.bool(for: .audioFollowSourceFormat),
+          Preference.bool(for: PK.audioDriverEnableAVFoundation),
+          // A compressed stream has to reach the receiver at the rate it was encoded at, and mpv
+          // reports that rate as the output rate, so leave passthrough alone.
+          mpv.getString("audio-out-params/format")?.contains("spdif") != true,
+          let sourceRate = mpv.getString(MPVProperty.audioParamsSamplerate).flatMap(Double.init),
+          sourceRate > 0,
+          let device = AudioDeviceControl.defaultOutputDevice,
+          let current = AudioDeviceControl.rate(of: device) else { return }
+
+    let available = AudioDeviceControl.availableRates(of: device)
+    guard let target = AudioDeviceControl.bestRate(for: sourceRate, from: available),
+          abs(target - current) >= 1 else { return }
+
+    if originalDeviceRate == nil || originalDeviceRate?.device != device {
+      originalDeviceRate = (device, current)
+    }
+    let matched = AudioDeviceControl.setRate(target, of: device)
+    log("""
+        Matching output device to source: \(Int(sourceRate)) Hz source, device \(Int(current)) \
+        -> \(Int(target)) Hz\(matched ? "" : " (device refused)")
+        """)
+  }
+
+  /// Hand the output device back at the rate it was found at.
+  private func restoreDeviceRate() {
+    guard let (device, rate) = originalDeviceRate else { return }
+    originalDeviceRate = nil
+    AudioDeviceControl.setRate(rate, of: device)
+  }
+
+  /// mpv reconfigured the audio chain, so the output format may have changed.
+  func onAudioReconfig() {
+    matchDeviceRateToSource()
   }
 
   func setVolume(_ volume: Double, constrain: Bool = true) {
