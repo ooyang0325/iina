@@ -1272,13 +1272,55 @@ class PlayerCore: NSObject {
     postNotification(.iinaPlaylistChanged)
   }
 
+  /// Whether volume changes drive the output device's own volume control rather than mpv's
+  /// software gain.
+  ///
+  /// Exclusive output exists to hand the source's own samples to the hardware, and mpv's `volume`
+  /// is a multiply over the sample buffer, so scaling there would defeat the point. Devices with
+  /// no settable volume, HDMI and most S/PDIF among them, report `ao-volume` as unavailable and
+  /// keep using the software gain.
+  var usesHardwareVolume: Bool {
+    mpv.getString(MPVProperty.currentAo) == "coreaudio_exclusive"
+      && mpv.getString(MPVProperty.aoVolume) != nil
+  }
+
   func setVolume(_ volume: Double, constrain: Bool = true) {
+    guard !usesHardwareVolume else {
+      // The device has no amplification beyond its own maximum, and mpv's software gain is left
+      // neutral so the output stays bit-perfect. `ao-volume` is not backed by an option, so mpv
+      // emits no change event for it and the UI has to be updated here.
+      let hardwareVolume = volume.clamped(to: 0...100)
+      mpv.setDouble(MPVProperty.aoVolume, hardwareVolume, level: .verbose)
+      info.volume = hardwareVolume
+      syncUI(.volume)
+      sendOSD(.volume(hardwareVolume))
+      return
+    }
     let maxVolume = Preference.integer(for: .maxVolume)
     let constrainedVolume = volume.clamped(to: 0...Double(maxVolume))
     let appliedVolume = constrain ? constrainedVolume : volume
     info.volume = appliedVolume
     mpv.setDouble(MPVOption.Audio.volume, appliedVolume, level: .verbose)
     Preference.set(constrainedVolume, for: .softVolume)
+  }
+
+  /// Reconcile how volume is applied with the audio output that is now active.
+  ///
+  /// Under exclusive output the level shown is read back from the device rather than pushed to it,
+  /// because the device volume is hardware state shared with the rest of the system and IINA has
+  /// no business reprogramming it just because a file was opened. Any other output goes back to
+  /// the software gain and the level the user last chose.
+  private func syncVolumeMode() {
+    if usesHardwareVolume {
+      guard let level = mpv.getString(MPVProperty.aoVolume).flatMap(Double.init) else { return }
+      mpv.setDouble(MPVOption.Audio.volume, 100, level: .verbose)
+      info.volume = level
+    } else {
+      let saved = Preference.double(for: .softVolume)
+      mpv.setDouble(MPVOption.Audio.volume, saved, level: .verbose)
+      info.volume = saved
+    }
+    syncUI(.volume)
   }
 
   func setTrack(_ index: Int, forType: MPVTrack.TrackType) {
@@ -2277,6 +2319,7 @@ class PlayerCore: NSObject {
   /// When the audio output driver changes it may cause the currently selected audio device to be invalid because a mpv audio device
   /// is tied to a specific audio output driver. Attempt to find and configure the same audio device with the current audio output driver.
   func currentAoChanged() {
+    syncVolumeMode()
     guard let currentAo = mpv.getString(MPVProperty.currentAo),
           let audioDevice = mpv.getString(MPVProperty.audioDevice) else { return }
     let device = MPVAudioDevice(desc: "", name: audioDevice)

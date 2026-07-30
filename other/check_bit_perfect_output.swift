@@ -7,6 +7,9 @@
 // default output device's physical stream format followed each one. Rates the device cannot do are
 // reported as skipped, not failed -- a real DAC is not the ideal one on paper.
 //
+// Rates the device cannot reach at all are then checked against the fallback policy: the highest
+// rate in a whole-number ratio with the source, or failing that the highest rate available.
+//
 // Usage:  swift other/check_bit_perfect_output.swift [path/to/libmpv.2.dylib]
 //
 // mpv restores the original physical format when the output is closed (ao_coreaudio.c uninit), so
@@ -187,6 +190,30 @@ for rate in rates {
     print("PASS  \(rate) Hz source → device running at \(actual) Hz")
   } else {
     print("FAIL  \(rate) Hz source → device running at \(actual) Hz")
+    failures += 1
+  }
+}
+
+// Rates the device cannot reach: it should land on the highest rate in a whole-number ratio with
+// the source, and only fall back to the highest rate available when there is no such relation.
+func expected(for source: Int) -> Int {
+  let sorted = supportedRates.sorted()
+  let ratio = sorted.filter { source % $0 == 0 || $0 % source == 0 }
+  return ratio.last ?? sorted.last ?? 0
+}
+
+print("")
+for rate in [22050, 384000, 37000] where !supportedRates.contains(rate) {
+  let file = directory.appendingPathComponent("sine-\(rate).wav")
+  try writeSine(rate: rate, seconds: 1.5, to: file)
+
+  let want = expected(for: rate)
+  let actual = play(file)
+  let why = want % rate == 0 || rate % want == 0 ? "whole-number ratio" : "highest available"
+  if actual == want {
+    print("PASS  \(rate) Hz source → device at \(actual) Hz (\(why))")
+  } else {
+    print("FAIL  \(rate) Hz source → device at \(actual) Hz, expected \(want) (\(why))")
     failures += 1
   }
 }
