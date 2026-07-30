@@ -538,7 +538,6 @@ class MainWindowController: PlayerWindowController {
     setupVideoContainerConstraints()
 
     addVideoViewToWindow()
-    setupVideoViewConstraints()
     player.initVideo()
     videoView.postsFrameChangedNotifications = true
 
@@ -748,16 +747,31 @@ class MainWindowController: PlayerWindowController {
     }
     videoViewContainer.addSubview(videoView)
     videoView.translatesAutoresizingMaskIntoConstraints = false
+    setupVideoViewConstraints()
   }
 
+  /// Pin the video view to its container.
+  ///
+  /// Removing a view from its superview destroys every constraint that crossed the two view
+  /// hierarchies, so these have to be rebuilt each time the video view is re-added rather than
+  /// only once at window load. Music mode and Picture in Picture both take the video view away
+  /// and hand it back; without this the view was left unconstrained and, having no autoresizing
+  /// mask to fall back on, kept whatever size it had over there, stranded in the bottom left
+  /// corner of the window with the rest drawn black. Still images such as album art made that
+  /// obvious, since nothing further is rendered to correct it.
   private func setupVideoViewConstraints() {
+    // Interactive mode drives the crop preview through these constants, so carry them over.
+    let constants = videoViewConstraints.mapValues { $0.constant }
     videoViewConstraints = [
       .leading: videoView.leadingAnchor.constraint(equalTo: videoViewContainer.leadingAnchor),
       .trailing: videoViewContainer.trailingAnchor.constraint(equalTo: videoView.trailingAnchor),
       .top: videoView.topAnchor.constraint(equalTo: videoViewContainer.topAnchor),
       .bottom: videoViewContainer.bottomAnchor.constraint(equalTo: videoView.bottomAnchor)
     ]
-    layoutSides.forEach { videoViewConstraints[$0]?.isActive = true }
+    layoutSides.forEach {
+      videoViewConstraints[$0]?.constant = constants[$0] ?? 0
+      videoViewConstraints[$0]?.isActive = true
+    }
   }
 
   func updateVideoViewConstraints(_ constraints: [NSLayoutConstraint.Attribute: CGFloat]) {
