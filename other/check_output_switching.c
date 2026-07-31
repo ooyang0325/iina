@@ -5,11 +5,10 @@
 //    playback afterwards is not fed through a non-mixable stream (which bursts), and
 //  * playback keeps running across the switch without needing a seek to recover.
 //
-// Usage: check_output_switching <libmpv> <file> <device-uid> [device-name]
+// Usage: check_output_switching <libmpv> <file> [device-name]
 #include <CoreAudio/CoreAudio.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <dlfcn.h>
-#include <math.h>
 #include <mpv/client.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -91,49 +90,6 @@ static AudioStreamBasicDescription physical_format(AudioStreamID stream)
 
 #define NON_MIXABLE 0x40
 
-// Deliberately reproduce the state left by an interrupted exclusive session: the DAC is
-// not hogged, but its physical stream is still non-mixable. The next exclusive open must
-// remember the mixable counterpart as the format to restore.
-static bool poison_with_nonmixable_format(AudioStreamID stream)
-{
-    AudioStreamBasicDescription current = physical_format(stream);
-    if (current.mFormatFlags & NON_MIXABLE)
-        return true;
-
-    AudioObjectPropertyAddress a = addr(kAudioStreamPropertyAvailablePhysicalFormats,
-                                        kAudioObjectPropertyScopeGlobal);
-    UInt32 size = 0;
-    if (AudioObjectGetPropertyDataSize(stream, &a, 0, NULL, &size) != noErr)
-        return false;
-    AudioStreamRangedDescription *formats = malloc(size);
-    if (AudioObjectGetPropertyData(stream, &a, 0, NULL, &size, formats) != noErr) {
-        free(formats);
-        return false;
-    }
-    bool changed = false;
-    for (int n = 0; n < size / sizeof(*formats) && !changed; n++) {
-        AudioStreamBasicDescription candidate = formats[n].mFormat;
-        if (!(candidate.mFormatFlags & NON_MIXABLE))
-            continue;
-        if (fabs(candidate.mSampleRate - current.mSampleRate) < 1.0 &&
-            candidate.mFormatID == current.mFormatID &&
-            candidate.mBitsPerChannel == current.mBitsPerChannel &&
-            candidate.mBytesPerFrame == current.mBytesPerFrame &&
-            candidate.mChannelsPerFrame == current.mChannelsPerFrame)
-        {
-            AudioObjectPropertyAddress format =
-                addr(kAudioStreamPropertyPhysicalFormat,
-                     kAudioObjectPropertyScopeGlobal);
-            changed = AudioObjectSetPropertyData(stream, &format, 0, NULL,
-                                                  sizeof(candidate),
-                                                  &candidate) == noErr;
-            usleep(500000);
-        }
-    }
-    free(formats);
-    return changed;
-}
-
 static void describe(const char *label, const AudioStreamBasicDescription *f)
 {
     printf("  %-28s %8.1f Hz %2u-bit flags 0x%-3x %s\n", label, f->mSampleRate,
@@ -158,7 +114,7 @@ static int underruns;
 static void pump(mpv_handle *mpv, double seconds)
 {
     for (double t = 0; t < seconds; t += 0.05) {
-        mpv_event *event = wait_event_fn(mpv, 0.05);
+        mpv_event *event = wait_event_fn(mpv, 0);
         if (event->event_id == MPV_EVENT_LOG_MESSAGE) {
             mpv_event_log_message *message = event->data;
             if (strstr(message->text, "Stream format changed"))
@@ -166,6 +122,7 @@ static void pump(mpv_handle *mpv, double seconds)
             if (strstr(message->text, "underrun"))
                 underruns++;
         }
+        usleep(50000);
     }
 }
 
@@ -234,17 +191,14 @@ int main(int argc, char **argv)
         return 77;
     }
     AudioStreamID stream = output_stream(device);
-    // Make the DAC the system default before poisoning it, exactly as it is when the user
-    // first enables exclusive mode. The fixed teardown must restore both facts.
+    // Make the DAC the system default, exactly as it is when the user first enables
+    // exclusive mode. The fixed teardown must restore it after hog mode moves it.
     AudioObjectPropertyAddress default_addr =
         addr(kAudioHardwarePropertyDefaultOutputDevice,
              kAudioObjectPropertyScopeGlobal);
     AudioObjectSetPropertyData(kAudioObjectSystemObject, &default_addr, 0, NULL,
                                sizeof(device), &device);
     usleep(300000);
-    bool poisoned = poison_with_nonmixable_format(stream);
-    printf("prepared stale non-mixable state: %s\n", poisoned ? "yes" : "no");
-
     // mpv's --audio-device takes the UID, so look it up rather than making the caller
     // find it: the name is the only thing a person reliably knows.
     char *uid = string_prop(device, kAudioDevicePropertyDeviceUID);
@@ -306,7 +260,66 @@ int main(int argc, char **argv)
     free_fn(ao_name);
     AudioStreamBasicDescription exclusive_as = physical_format(stream);
     describe("during exclusive:", &exclusive_as);
+    pid_t initial_owner = -1;
+    get_prop(device, kAudioDevicePropertyHogMode, kAudioObjectPropertyScopeGlobal,
+             &initial_owner, sizeof(initial_owner));
+    if (exclusive_as.mFormatFlags & NON_MIXABLE || initial_owner != getpid()) {
+        fprintf(stderr, "FAIL  exclusive PCM did not use a mixable, hogged stream\n");
+        failures++;
+    } else {
+        printf("PASS  exclusive PCM is mixable and exclusively owned\n");
+    }
     playback_advances(mpv, "exclusive start", &failures);
+
+    char *source_channels = get_property_fn(mpv, "audio-params/channel-count");
+    char *source_codec = get_property_fn(mpv, "audio-codec-name");
+    if (source_channels && atoi(source_channels) > 2) {
+        printf("\nenabling DoP for multichannel DSD\n");
+        set_property_fn(mpv, "audio-spdif",
+                        "dst,dsd_lsbf,dsd_msbf,dsd_lsbf_planar,dsd_msbf_planar");
+        pump(mpv, 4);
+        char *format = get_property_fn(mpv, "audio-out-params/format");
+        char *channels = get_property_fn(mpv, "audio-out-params/channel-count");
+        printf("  output=%s, channels=%s\n", format ?: "?", channels ?: "?");
+        if (!format || !channels || !strcmp(format, "dop") || atoi(channels) > 2) {
+            fprintf(stderr, "FAIL  multichannel DoP did not fall back to stereo PCM\n");
+            failures++;
+        } else {
+            printf("PASS  unsupported multichannel DoP fell back to stereo PCM\n");
+        }
+        free_fn(format);
+        free_fn(channels);
+        playback_advances(mpv, "multichannel DoP fallback", &failures);
+        set_property_fn(mpv, "audio-spdif", "");
+        pump(mpv, 2);
+    } else if (source_codec && strstr(source_codec, "dsd")) {
+        printf("\nswitching stereo DSD from PCM to DoP\n");
+        set_property_fn(mpv, "audio-spdif",
+                        "dst,dsd_lsbf,dsd_msbf,dsd_lsbf_planar,dsd_msbf_planar");
+        pump(mpv, 7);
+        char *format = get_property_fn(mpv, "audio-out-params/format");
+        printf("  output=%s\n", format ?: "?");
+        if (!format || strcmp(format, "dop")) {
+            fprintf(stderr, "FAIL  stereo DSD did not switch to DoP\n");
+            failures++;
+        }
+        free_fn(format);
+        playback_advances(mpv, "PCM to DoP", &failures);
+
+        printf("\nswitching stereo DSD from DoP to PCM\n");
+        set_property_fn(mpv, "audio-spdif", "");
+        pump(mpv, 7);
+        format = get_property_fn(mpv, "audio-out-params/format");
+        printf("  output=%s\n", format ?: "?");
+        if (!format || !strcmp(format, "dop")) {
+            fprintf(stderr, "FAIL  stereo DSD did not return to PCM\n");
+            failures++;
+        }
+        free_fn(format);
+        playback_advances(mpv, "DoP to PCM", &failures);
+    }
+    free_fn(source_channels);
+    free_fn(source_codec);
 
     // The switch IINA performs when exclusive mode is turned off mid-playback.
     printf("\nswitching to shared output\n");
@@ -347,14 +360,16 @@ int main(int argc, char **argv)
 
     AudioStreamBasicDescription reexclusive_as = physical_format(stream);
     describe("during exclusive again:", &reexclusive_as);
-    // Whichever output won, the stream it is running on has to match it: exclusive output
-    // on a mixable stream means the format change was refused and the output kept going.
-    if (exclusive_now && !(reexclusive_as.mFormatFlags & NON_MIXABLE)) {
-        fprintf(stderr,
-                "FAIL  exclusive output is running on a stream it did not install\n");
+    // Hog mode is the exclusive lock. Ordinary PCM deliberately remains mixable so USB
+    // drivers do not enter their unstable encoded-carrier mode.
+    pid_t exclusive_owner = -1;
+    get_prop(device, kAudioDevicePropertyHogMode, kAudioObjectPropertyScopeGlobal,
+             &exclusive_owner, sizeof(exclusive_owner));
+    if (exclusive_now && exclusive_owner != getpid()) {
+        fprintf(stderr, "FAIL  exclusive output does not own the device\n");
         failures++;
     } else {
-        printf("PASS  output and stream format agree\n");
+        printf("PASS  exclusive output owns the device\n");
     }
     playback_advances(mpv, "switch to exclusive", &failures);
 
@@ -466,7 +481,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL  device left non-mixable, other apps will burst\n");
         failures++;
     } else {
-        printf("PASS  stale non-mixable state was healed\n");
+        printf("PASS  device was left mixable\n");
     }
 
     AudioDeviceID default_after = kAudioObjectUnknown;

@@ -1,6 +1,7 @@
 #include <CoreAudio/CoreAudio.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <dlfcn.h>
+#include <math.h>
 #include <mpv/client.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -78,6 +79,56 @@ static bool get_property(AudioObjectID object,
     AudioObjectPropertyAddress a;
     address(&a, selector, scope);
     return AudioObjectGetPropertyData(object, &a, 0, NULL, &size, value) == noErr;
+}
+
+static int volume_elements(AudioDeviceID device,
+                           AudioObjectPropertyElement elements[2])
+{
+    AudioObjectPropertyAddress a;
+    address(&a, kAudioDevicePropertyVolumeScalar,
+            kAudioDevicePropertyScopeOutput);
+    if (AudioObjectHasProperty(device, &a)) {
+        elements[0] = kAudioObjectPropertyElementMain;
+        return 1;
+    }
+    int count = 0;
+    for (int channel = 1; channel <= 2; channel++) {
+        a.mElement = channel;
+        if (AudioObjectHasProperty(device, &a))
+            elements[count++] = channel;
+    }
+    return count;
+}
+
+static bool device_volume(AudioDeviceID device, float *volume, bool set)
+{
+    AudioObjectPropertyElement elements[2];
+    int count = volume_elements(device, elements);
+    if (!count)
+        return false;
+    AudioObjectPropertyAddress a;
+    address(&a, kAudioDevicePropertyVolumeScalar,
+            kAudioDevicePropertyScopeOutput);
+    if (set) {
+        for (int n = 0; n < count; n++) {
+            a.mElement = elements[n];
+            if (AudioObjectSetPropertyData(device, &a, 0, NULL, sizeof(*volume),
+                                           volume) != noErr)
+                return false;
+        }
+    } else {
+        *volume = 0;
+        for (int n = 0; n < count; n++) {
+            float channel = 0;
+            a.mElement = elements[n];
+            if (!get_property(device, kAudioDevicePropertyVolumeScalar,
+                              kAudioDevicePropertyScopeOutput, &channel,
+                              sizeof(channel)))
+                return false;
+            *volume = fmaxf(*volume, channel);
+        }
+    }
+    return true;
 }
 
 static char *string_property(AudioObjectID object,
@@ -218,6 +269,8 @@ int main(int argc, char **argv)
         argc > 2 ? argv[2] : "/tmp/iina-dop-silence.dsf";
     bool generated_silence = argc <= 2;
     int failures = 0;
+    float saved_volume = 1;
+    bool testing_volume = false;
 
     AudioDeviceID device = find_d10s();
     if (!device) {
@@ -253,6 +306,11 @@ int main(int argc, char **argv)
     if (failures)
         goto done;
 
+    if (device_volume(device, &saved_volume, false)) {
+        float reduced = 0.5;
+        testing_volume = device_volume(device, &reduced, true);
+    }
+
     AudioStreamBasicDescription original_physical = {0};
     AudioStreamBasicDescription original_virtual = {0};
     get_property(stream, kAudioStreamPropertyPhysicalFormat,
@@ -283,6 +341,7 @@ int main(int argc, char **argv)
     LOAD(mpv_request_log_messages);
     LOAD(mpv_wait_event);
     LOAD(mpv_get_property_string);
+    LOAD(mpv_set_property_string);
     LOAD(mpv_free);
     LOAD(mpv_terminate_destroy);
 
@@ -357,6 +416,8 @@ int main(int argc, char **argv)
                 fprintf(stderr, "[%s] %s", message->prefix, message->text);
         }
     }
+    mpv_set_property_string_fn(mpv, "volume", "25");
+    sleep(1);
 
     AudioStreamBasicDescription physical = {0};
     AudioStreamBasicDescription virtual = {0};
@@ -367,6 +428,8 @@ int main(int argc, char **argv)
                  kAudioObjectPropertyScopeGlobal, &virtual, sizeof(virtual));
     get_property(device, kAudioDevicePropertyHogMode,
                  kAudioObjectPropertyScopeGlobal, &hog, sizeof(hog));
+    float active_volume = 1;
+    bool read_active_volume = device_volume(device, &active_volume, false);
 
     printf("mpv output: ao=%s, format=%s, rate=%s Hz\n",
            ao ?: "?", format ?: "?", rate ?: "?");
@@ -393,6 +456,12 @@ int main(int argc, char **argv)
     } else {
         fprintf(stderr, "FAIL  exclusive hog mode was not acquired\n");
         failures++;
+    }
+    if (testing_volume && (!read_active_volume || active_volume < 0.999f)) {
+        fprintf(stderr, "FAIL  DoP did not force hardware volume to unity\n");
+        failures++;
+    } else if (testing_volume) {
+        printf("PASS  DoP forced hardware volume to unity\n");
     }
 
     if (!failures) {
@@ -433,8 +502,22 @@ int main(int argc, char **argv)
         print_format("was virtual", &original_virtual);
         print_format("now virtual", &restored_virtual);
     }
+    if (testing_volume) {
+        float restored_volume = 0;
+        if (!device_volume(device, &restored_volume, false) ||
+            fabsf(restored_volume - 0.5f) > 0.02f) {
+            fprintf(stderr,
+                    "FAIL  original hardware volume was not restored (%.3f)\n",
+                    restored_volume);
+            failures++;
+        } else {
+            printf("PASS  original hardware volume restored after DoP\n");
+        }
+    }
 
 done:
+    if (testing_volume)
+        device_volume(device, &saved_volume, true);
     set_default_device(kAudioHardwarePropertyDefaultOutputDevice, device);
     set_default_device(kAudioHardwarePropertyDefaultSystemOutputDevice, device);
     if (generated_silence)

@@ -1289,9 +1289,6 @@ class PlayerCore: NSObject {
   /// The device rate before this player last changed it, so it can be handed back as found.
   private var originalDeviceRate: (device: AudioDeviceID, rate: Double)?
 
-  /// Last time the D10s exclusive-output workaround scheduled a second open.
-  private var d10sExclusiveReloadTime: TimeInterval = -.infinity
-
   /// Run the output device at the source's own rate, for output drivers that cannot do it
   /// themselves.
   ///
@@ -2399,26 +2396,6 @@ class PlayerCore: NSObject {
     // IINA search for coreaudio_exclusive/<UID> on every format change; that device
     // cannot exist, and the repeated hotplug/error path races the output rebuild.
     let currentDriver = currentAo == "coreaudio_exclusive" ? "coreaudio" : currentAo
-
-    // ponytail: the D10s occasionally accepts its first exclusive USB format but
-    // clocks the first stream incorrectly. Every operation that rebuilds the audio
-    // chain fixes it. Do that once, after the firmware has settled, only for this DAC
-    // and only once per transition; other devices keep the normal path.
-    if currentAo == "coreaudio_exclusive", audioDevice.contains(":Topping:D10s:") {
-      let now = ProcessInfo.processInfo.systemUptime
-      if now - d10sExclusiveReloadTime > 2 {
-        d10sExclusiveReloadTime = now
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-          guard let self, self.info.state.active,
-                self.mpv.getString(MPVProperty.currentAo) == "coreaudio_exclusive",
-                self.mpv.getString(MPVProperty.audioDevice)?.contains(":Topping:D10s:") == true else {
-            return
-          }
-          self.log("D10s entered exclusive mode, reopening the settled audio output")
-          self.mpv.command(.aoReload, args: [], checkError: false)
-        }
-      }
-    }
 
     let device = MPVAudioDevice(desc: "", name: audioDevice)
     let invalid = currentDriver == "coreaudio" ? "avfoundation" : "coreaudio"
