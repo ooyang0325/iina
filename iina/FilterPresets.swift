@@ -31,7 +31,7 @@ fileprivate extension String {
  A filter preset or template, which contains the filter name and definitions of all parameters.
  */
 class FilterPreset {
-  typealias Transformer = (FilterPresetInstance) -> MPVFilter
+  typealias Transformer = (FilterPresetInstance) -> MPVFilter?
 
   private static let defaultTransformer: Transformer = { instance in
     return MPVFilter(lavfiFilterFromPresetInstance: instance)
@@ -105,13 +105,16 @@ class FilterParameter {
   var step: Int?
   // for choose
   var choices: [String] = []
+  var fileExtensions: [String] = []
 
   static func text(defaultValue: String = "") -> FilterParameter {
     return FilterParameter(.text, defaultValue: FilterParameterValue(string: defaultValue))
   }
 
-  static func file() -> FilterParameter {
-    return FilterParameter(.file, defaultValue: FilterParameterValue(string: ""))
+  static func file(extensions: [String]) -> FilterParameter {
+    let pm = FilterParameter(.file, defaultValue: FilterParameterValue(string: ""))
+    pm.fileExtensions = extensions
+    return pm
   }
 
   static func int(min: Int, max: Int, step: Int = 1, defaultValue: Int = 0) -> FilterParameter {
@@ -197,7 +200,7 @@ extension FilterPreset {
   }()
 
   static private let customMPVFilterPreset = FilterPreset("custom_mpv", params: ["name": PM.text(defaultValue: ""), "string": PM.text(defaultValue: "")], paramOrder: "name:string") { instance in
-      return MPVFilter(rawString: instance.value(for: "name").stringValue + "=" + instance.value(for: "string").stringValue)!
+      return MPVFilter(rawString: instance.value(for: "name").stringValue + "=" + instance.value(for: "string").stringValue)
   }
   // custom ffmpeg
   static private let customFFmpegFilterPreset = FilterPreset("custom_ffmpeg", params: [ "name": PM.text(defaultValue: ""), "string": PM.text(defaultValue: "") ], paramOrder: "name:string") { instance in
@@ -305,8 +308,46 @@ extension FilterPreset {
         "precision": "double"
       ])
     },
+    FilterPreset("dsp_autoeq", params: [
+      "file": PM.file(extensions: ["txt"])
+    ], paramOrder: "file") { instance in
+      guard let graph = try? EqualizerAPOParser.filterGraph(
+        contentsOf: URL(fileURLWithPath: instance.value(for: "file").stringValue)
+      ) else {
+        return nil
+      }
+      return MPVFilter(name: "lavfi", label: nil, paramString: "[\(graph)]")
+    },
+    FilterPreset("dsp_dynamic_eq", params: [
+      "detection_frequency": PM.text(defaultValue: "1000"),
+      "detection_q": PM.text(defaultValue: "1"),
+      "threshold": PM.text(defaultValue: "50"),
+      "target_frequency": PM.text(defaultValue: "1000"),
+      "target_q": PM.text(defaultValue: "1"),
+      "mode": PM.choose(from: ["cutabove", "cutbelow", "boostabove", "boostbelow"]),
+      "filter_type": PM.choose(from: ["bell", "lowshelf", "highshelf"]),
+      "ratio": PM.text(defaultValue: "2"),
+      "range": PM.text(defaultValue: "6"),
+      "attack": PM.text(defaultValue: "20"),
+      "release": PM.text(defaultValue: "200")
+    ], paramOrder: "detection_frequency:detection_q:threshold:target_frequency:target_q:mode:filter_type:ratio:range:attack:release") { instance in
+      return MPVFilter(lavfiName: "adynamicequalizer", label: nil, paramDict: [
+        "dfrequency": instance.value(for: "detection_frequency").stringValue,
+        "dqfactor": instance.value(for: "detection_q").stringValue,
+        "threshold": instance.value(for: "threshold").stringValue,
+        "tfrequency": instance.value(for: "target_frequency").stringValue,
+        "tqfactor": instance.value(for: "target_q").stringValue,
+        "mode": instance.value(for: "mode").stringValue,
+        "tftype": instance.value(for: "filter_type").stringValue,
+        "ratio": instance.value(for: "ratio").stringValue,
+        "range": instance.value(for: "range").stringValue,
+        "attack": instance.value(for: "attack").stringValue,
+        "release": instance.value(for: "release").stringValue,
+        "precision": "double"
+      ])
+    },
     FilterPreset("dsp_convolution", params: [
-      "file": PM.file(),
+      "file": PM.file(extensions: ["wav", "wave", "flac", "aif", "aiff", "caf"]),
       "dry": PM.text(defaultValue: "0"),
       "wet": PM.text(defaultValue: "1"),
       "irnorm": PM.text(defaultValue: "1"),
@@ -327,6 +368,22 @@ extension FilterPreset {
       "level_in": PM.text(defaultValue: "0.9"),
       "level_out": PM.text(defaultValue: "1")
     ], paramOrder: "strength:range:slope:level_in:level_out"),
+    FilterPreset("dsp_bass_management", params: [
+      "frequency": PM.text(defaultValue: "80"),
+      "order": PM.choose(from: ["4th", "8th", "2nd", "6th"]),
+      "main_gain": PM.text(defaultValue: "0"),
+      "sub_gain": PM.text(defaultValue: "0")
+    ], paramOrder: "frequency:order:main_gain:sub_gain") { instance in
+      let graph = """
+        [in]acrossover=split=\(instance.value(for: "frequency").stringValue):\
+        order=\(instance.value(for: "order").stringValue):precision=double[low][high];\
+        [low]pan=mono|c0=0.5*c0+0.5*c1,\
+        volume=volume=\(instance.value(for: "sub_gain").stringValue)dB:precision=double[sub];\
+        [high]volume=volume=\(instance.value(for: "main_gain").stringValue)dB:precision=double[mains];\
+        [mains][sub]join=inputs=2:channel_layout=2.1:map=0.FL-FL|0.FR-FR|1.FC-LFE[out]
+        """
+      return MPVFilter(name: "lavfi", label: nil, paramString: "[\(graph)]")
+    },
     FilterPreset("dsp_speaker_mix", params: [
       "matrix": PM.text(defaultValue: "stereo|c0=c0|c1=c1")
     ], paramOrder: "matrix") { instance in
@@ -340,6 +397,25 @@ extension FilterPreset {
       return MPVFilter(lavfiName: "adelay", label: nil, paramDict: [
         "delays": instance.value(for: "delays").stringValue,
         "all": instance.value(for: "all").stringValue
+      ])
+    },
+    FilterPreset("dsp_stereo_correction", params: [
+      "mode": PM.choose(from: ["lr>lr", "lr>rl", "ms>lr", "lr>ms"]),
+      "width": PM.text(defaultValue: "1"),
+      "balance": PM.text(defaultValue: "0"),
+      "left_polarity": PM.choose(from: ["false", "true"]),
+      "right_polarity": PM.choose(from: ["false", "true"]),
+      "phase": PM.text(defaultValue: "0"),
+      "delay": PM.text(defaultValue: "0")
+    ], paramOrder: "mode:width:balance:left_polarity:right_polarity:phase:delay") { instance in
+      return MPVFilter(lavfiName: "stereotools", label: nil, paramDict: [
+        "mode": instance.value(for: "mode").stringValue,
+        "slev": instance.value(for: "width").stringValue,
+        "balance_out": instance.value(for: "balance").stringValue,
+        "phasel": instance.value(for: "left_polarity").stringValue,
+        "phaser": instance.value(for: "right_polarity").stringValue,
+        "phase": instance.value(for: "phase").stringValue,
+        "delay": instance.value(for: "delay").stringValue
       ])
     },
     FilterPreset("dsp_limiter", params: [

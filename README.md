@@ -42,12 +42,18 @@ architecture:
 | Immersive audio | E-AC-3/TrueHD Atmos and DTS:X object-rendering paths, E-AC-3 AVFoundation passthrough, and native channel-based fallback |
 | Audiophile output | Core Audio exclusive access, physical sample-rate matching, hardware volume, USB DAC format recovery, and guarded format handoffs |
 | DSD and SACD | Native DSF/DFF, raw DSD over DoP 1.1, DST-to-DSD, and SACD ISO areas, tracks, chapters, and seeking |
-| Audiophile DSP | Ordered headroom, parametric EQ bands, FIR room/headphone correction, crossfeed, speaker matrix/time alignment, and safety limiting |
+| Audiophile DSP | Ordered headroom, manual or AutoEQ/REW parametric EQ, dynamic EQ, FIR correction, crossfeed, stereo correction, 2.1 bass management, speaker matrix/time alignment, and safety limiting |
 | Diagnostics and delivery | Live signal-path Inspector, headless and hardware regression checks, and signed arm64 ZIP artifacts from GitHub Actions |
 
 The DSP rack is available from **Audio > Audio Filters...**. Modules can be
 combined, saved, and toggled as a signal chain. DSP operates on decoded PCM, so
 disable the rack when using encoded passthrough or DoP.
+
+FIR convolution accepts WAV, FLAC, AIFF, or CAF impulse responses. AutoEQ/REW
+import accepts Equalizer APO `ParametricEQ.txt` files with preamp, peak, and
+low/high-shelf entries; `GraphicEQ.txt` is intentionally not approximated.
+Stereo 2.1 bass management emits FL, FR, and LFE channels and therefore requires
+an output device that exposes a compatible multichannel layout.
 
 ## Downloading
 

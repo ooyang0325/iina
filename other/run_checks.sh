@@ -52,6 +52,12 @@ cc "$REPO_ROOT/other/check_dst_raw.c" \
    -o "$PREFIX/check_dst_raw"
 run "raw DST to DSD" env DYLD_LIBRARY_PATH="$PREFIX/lib" "$PREFIX/check_dst_raw"
 
+# AutoEQ and REW export the same Equalizer APO text format. Keep its small parser independent
+# from AppKit so malformed presets cannot silently generate a partial filter chain.
+swiftc "$REPO_ROOT/iina/EqualizerAPOParser.swift" "$REPO_ROOT/other/check_equalizer_apo.swift" \
+    -o "$PREFIX/check_equalizer_apo"
+run "Equalizer APO import" "$PREFIX/check_equalizer_apo"
+
 # DoP packing: marker alternation, bit order, channel interleave and packet boundaries.
 run "mpv unit tests" meson test -C "$SRC/mpv/build" --print-errorlogs
 

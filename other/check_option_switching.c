@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static typeof(mpv_wait_event) *wait_event_fn;
 static typeof(mpv_get_property_string) *get_property_fn;
@@ -65,6 +66,42 @@ static void check_filter(mpv_handle *mpv, const char *name, const char *filter,
     }
     resumes(mpv, name, failures);
     set_property_fn(mpv, "af", "");
+}
+
+static void put_le16(FILE *file, unsigned value)
+{
+    fputc(value, file);
+    fputc(value >> 8, file);
+}
+
+static void put_le32(FILE *file, unsigned value)
+{
+    put_le16(file, value);
+    put_le16(file, value >> 16);
+}
+
+static bool write_impulse_response(const char *path)
+{
+    FILE *file = fopen(path, "wb");
+    if (!file)
+        return false;
+    const unsigned samples = 4800;
+    fwrite("RIFF", 1, 4, file);
+    put_le32(file, 36 + samples * 2);
+    fwrite("WAVEfmt ", 1, 8, file);
+    put_le32(file, 16);
+    put_le16(file, 1);
+    put_le16(file, 1);
+    put_le32(file, 48000);
+    put_le32(file, 96000);
+    put_le16(file, 2);
+    put_le16(file, 16);
+    fwrite("data", 1, 4, file);
+    put_le32(file, samples * 2);
+    put_le16(file, 32767);
+    for (unsigned n = 1; n < samples; n++)
+        put_le16(file, 0);
+    return fclose(file) == 0;
 }
 
 int main(int argc, char **argv)
@@ -163,20 +200,51 @@ int main(int argc, char **argv)
         {"DSP parametric EQ",
          "lavfi=[equalizer=frequency=1000:gain=-3:width_type=q:width=1:"
          "channels=all:precision=double]"},
+        {"DSP imported AutoEQ",
+         "lavfi=[volume=volume=-6dB:precision=double,"
+         "equalizer=frequency=105:width_type=q:width=1.2:gain=-3:precision=double,"
+         "lowshelf=frequency=120:width_type=q:width=0.7:gain=1.5:precision=double]"},
+        {"DSP dynamic EQ",
+         "lavfi=[adynamicequalizer=dfrequency=1000:dqfactor=1:threshold=50:"
+         "tfrequency=1000:tqfactor=1:mode=cutabove:tftype=bell:ratio=2:"
+         "range=6:attack=20:release=200:precision=double]"},
         {"DSP convolution",
          "lavfi=[aevalsrc=1:d=0.1[ir];[in][ir]afir=dry=0:wet=1:"
          "irnorm=1:precision=double[out]]"},
         {"DSP crossfeed",
          "lavfi=[crossfeed=strength=0.2:range=0.5:slope=0.5:"
          "level_in=0.9:level_out=1]"},
+        {"DSP 2.1 bass management",
+         "lavfi=[[in]acrossover=split=80:order=4th:precision=double[low][high];"
+         "[low]pan=mono|c0=0.5*c0+0.5*c1,volume=volume=0dB:precision=double[sub];"
+         "[high]volume=volume=0dB:precision=double[mains];"
+         "[mains][sub]join=inputs=2:channel_layout=2.1:"
+         "map=0.FL-FL|0.FR-FR|1.FC-LFE[out]]"},
         {"DSP speaker matrix", "lavfi=[pan=stereo|c0=c0|c1=c1]"},
         {"DSP speaker alignment", "lavfi=[adelay=delays=0|0:all=false]"},
+        {"DSP stereo correction",
+         "lavfi=[stereotools=mode=lr>lr:slev=1:balance_out=0:"
+         "phasel=false:phaser=false:phase=0:delay=0]"},
         {"DSP safety limiter",
          "lavfi=[alimiter=limit=0.891251:attack=5:release=50:"
          "level=false:latency=true]"},
     };
     for (int n = 0; n < sizeof(dsp) / sizeof(dsp[0]); n++)
         check_filter(mpv, dsp[n][0], dsp[n][1], &failures);
+
+    char ir_path[256];
+    snprintf(ir_path, sizeof(ir_path), "/tmp/IINA DSP IR %d.wav", getpid());
+    if (write_impulse_response(ir_path)) {
+        char filter[1024];
+        snprintf(filter, sizeof(filter),
+                 "lavfi=[amovie=filename=%s[ir];[in][ir]afir=dry=0:wet=1:"
+                 "irnorm=1:precision=double[out]]", ir_path);
+        check_filter(mpv, "DSP convolution file", filter, &failures);
+        unlink(ir_path);
+    } else {
+        fprintf(stderr, "FAIL  could not create convolution impulse response\n");
+        failures++;
+    }
 
     mpv_terminate_destroy_fn(mpv);
     dlclose(library);

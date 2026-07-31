@@ -63,6 +63,22 @@
 "dsp_parametric_eq.q" = "Q factor";
 "dsp_parametric_eq.channels" = "Channels (all, FL, FR, ...)";
 
+"dsp_autoeq" = "AutoEQ / REW Parametric EQ";
+"dsp_autoeq.file" = "Equalizer APO text file";
+
+"dsp_dynamic_eq" = "Dynamic EQ";
+"dsp_dynamic_eq.detection_frequency" = "Detection frequency (Hz)";
+"dsp_dynamic_eq.detection_q" = "Detection Q factor";
+"dsp_dynamic_eq.threshold" = "Detection threshold (0-100)";
+"dsp_dynamic_eq.target_frequency" = "Target frequency (Hz)";
+"dsp_dynamic_eq.target_q" = "Target Q factor";
+"dsp_dynamic_eq.mode" = "Action";
+"dsp_dynamic_eq.filter_type" = "Target filter type";
+"dsp_dynamic_eq.ratio" = "Ratio (0-30)";
+"dsp_dynamic_eq.range" = "Maximum cut/boost";
+"dsp_dynamic_eq.attack" = "Attack (ms)";
+"dsp_dynamic_eq.release" = "Release (ms)";
+
 "dsp_convolution" = "FIR Convolution";
 "dsp_convolution.file" = "Impulse response audio file";
 "dsp_convolution.dry" = "Dry gain";
@@ -77,12 +93,27 @@
 "dsp_crossfeed.level_in" = "Input level (0-1)";
 "dsp_crossfeed.level_out" = "Output level (0-1)";
 
+"dsp_bass_management" = "Stereo 2.1 Bass Management";
+"dsp_bass_management.frequency" = "Crossover frequency (Hz)";
+"dsp_bass_management.order" = "Linkwitz-Riley order";
+"dsp_bass_management.main_gain" = "Main channels gain (dB)";
+"dsp_bass_management.sub_gain" = "Subwoofer gain (dB)";
+
 "dsp_speaker_mix" = "Speaker Channel Matrix";
 "dsp_speaker_mix.matrix" = "FFmpeg pan matrix";
 
 "dsp_speaker_delay" = "Speaker Time Alignment";
 "dsp_speaker_delay.delays" = "Per-channel delay in ms, samples (S), or seconds (s), separated by |";
 "dsp_speaker_delay.all" = "Apply the last delay to remaining channels";
+
+"dsp_stereo_correction" = "Stereo Image / Polarity";
+"dsp_stereo_correction.mode" = "Channel mode";
+"dsp_stereo_correction.width" = "Side level / width (1 = unchanged)";
+"dsp_stereo_correction.balance" = "Output balance (-1 to 1)";
+"dsp_stereo_correction.left_polarity" = "Invert left polarity";
+"dsp_stereo_correction.right_polarity" = "Invert right polarity";
+"dsp_stereo_correction.phase" = "Stereo phase (0-360 degrees)";
+"dsp_stereo_correction.delay" = "Inter-channel delay (-20 to 20 ms)";
 
 "dsp_limiter" = "Safety Limiter";
 "dsp_limiter.ceiling" = "Linear ceiling (0.891251 = -1 dBFS)";

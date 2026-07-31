@@ -498,6 +498,9 @@ class NewFilterSheetViewController: NSViewController, NSTableViewDelegate, NSTab
                                                    width: scrollContentView.frame.width - 8,
                                                    height: 24))
       pathControl.isEditable = true
+      pathControl.pathStyle = .popUp
+      pathControl.allowedTypes = param.fileExtensions
+      pathControl.placeholderString = NSLocalizedString("filter.choose_file", comment: "Choose a file")
       return pathControl
     case .int:
       // Slider
@@ -542,9 +545,16 @@ class NewFilterSheetViewController: NSViewController, NSTableViewDelegate, NSTab
       case .text:
         instance.params[name] = FilterParameterValue(string: control.stringValue)
       case .file:
-        guard let pathControl = control as? NSPathControl,
-              let path = pathControl.url?.path,
-              FileManager.default.fileExists(atPath: path) else {
+        guard let pathControl = control as? NSPathControl else {
+          Utility.showAlert("filter.incorrect", sheetWindow: filterWindow.newFilterSheet)
+          return
+        }
+        let rawPath = pathControl.url?.path ?? pathControl.stringValue
+        let path = (rawPath as NSString).expandingTildeInPath
+        var isDirectory = ObjCBool(false)
+        guard !path.isEmpty,
+              FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              !isDirectory.boolValue else {
           Utility.showAlert("filter.incorrect", sheetWindow: filterWindow.newFilterSheet)
           return
         }
@@ -562,9 +572,12 @@ class NewFilterSheetViewController: NSViewController, NSTableViewDelegate, NSTab
         instance.params[name] = FilterParameterValue(string: choice)
       }
     }
+    guard let filter = preset.transformer(instance) else {
+      Utility.showAlert("filter.incorrect", sheetWindow: filterWindow.newFilterSheet)
+      return
+    }
     filterWindow.window!.endSheet(filterWindow.newFilterSheet, returnCode: .OK)
-    // create filter
-    if filterWindow.addFilter(preset.transformer(instance)) {
+    if filterWindow.addFilter(filter) {
       PlayerCore.lastActive.sendOSD(.addFilter(preset.localizedName))
     }
   }

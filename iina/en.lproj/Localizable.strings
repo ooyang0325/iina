@@ -414,6 +414,7 @@
 
 "filter.video_filters" = "Video Filters";
 "filter.audio_filters" = "Audio DSP Rack";
+"filter.choose_file" = "Choose a file...";
 
 "hwdec.no" = "Disable hardware decoding.";
 "hwdec.auto" = "Enable hardware decoding. However, most of the video filters won't work properly.";
