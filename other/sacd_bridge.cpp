@@ -51,19 +51,34 @@ static double track_start(iina_sacd *sacd, area_id_e id, int track)
     return start;
 }
 
+static int track_frames(scarletbook_area_t *area, int track)
+{
+    return std::lround(track_duration(area, track) * 75);
+}
+
 static uint32_t track_sector_offset(scarletbook_area_t *area, int track,
                                     double seconds)
 {
     if (!area || !area->area_tracklist_offset)
         return 0;
-    uint32_t start = track ? area->area_tracklist_offset->track_start_lsn[track]
-                           : area->area_toc->track_start;
-    uint32_t end = track + 1 < area->area_toc->track_count
-        ? area->area_tracklist_offset->track_start_lsn[track + 1]
-        : area->area_toc->track_end;
     double duration = track_duration(area, track);
-    return duration > 0 ? (end - start) * std::clamp(seconds / duration, 0.0, 1.0)
-                        : 0;
+    return duration > 0
+        ? area->area_tracklist_offset->track_length_lsn[track] *
+          std::clamp(seconds / duration, 0.0, 1.0)
+        : 0;
+}
+
+static void select_track(iina_sacd *sacd, int track, uint32_t offset)
+{
+    auto *area = sacd->disc.get_area(sacd->active_area);
+    uint32_t lead_in = 0;
+    if (track == 0 && area->area_tracklist_offset) {
+        uint32_t logical_start =
+            area->area_tracklist_offset->track_start_lsn[0];
+        if (logical_start > area->area_toc->track_start)
+            lead_in = logical_start - area->area_toc->track_start;
+    }
+    sacd->disc.set_track(track, sacd->active_area, lead_in + offset);
 }
 
 extern "C" iina_sacd *iina_sacd_open(const char *path)
@@ -155,7 +170,7 @@ extern "C" int iina_sacd_select_area(iina_sacd *sacd, int index)
     sacd->active_track = 0;
     sacd->frame = 0;
     sacd->track_start = 0;
-    sacd->disc.set_track(0, id, 0);
+    select_track(sacd, 0, 0);
     return 1;
 }
 
@@ -170,10 +185,10 @@ extern "C" int iina_sacd_seek(iina_sacd *sacd, double seconds)
         if (seconds < start + duration || track + 1 == area->area_toc->track_count) {
             double within = std::clamp(seconds - start, 0.0, duration);
             uint32_t offset = track_sector_offset(area, track, within);
-            sacd->disc.set_track(track, sacd->active_area, offset);
             sacd->active_track = track;
             sacd->track_start = start;
             sacd->frame = std::floor(within * 75);
+            select_track(sacd, track, offset);
             return 1;
         }
         start += duration;
@@ -190,11 +205,22 @@ extern "C" int iina_sacd_read_frame(iina_sacd *sacd, void *data,
         return -1;
     auto *area = sacd->disc.get_area(sacd->active_area);
     for (;;) {
+        if (sacd->frame >= track_frames(area, sacd->active_track)) {
+            if (++sacd->active_track >= area->area_toc->track_count)
+                return 0;
+            sacd->track_start = track_start(sacd, sacd->active_area,
+                                            sacd->active_track);
+            sacd->frame = 0;
+            select_track(sacd, sacd->active_track, 0);
+        }
         size_t frame_size = capacity;
         frame_type_e type = FRAME_INVALID;
         if (sacd->disc.read_frame(static_cast<uint8_t *>(data), &frame_size, &type)) {
             if (type == FRAME_INVALID)
                 return -1;
+            if (type == FRAME_DSD &&
+                frame_size != area->area_toc->channel_count * FRAME_SIZE_64)
+                continue;
             *size = frame_size;
             *dst_encoded = type == FRAME_DST;
             *pts = sacd->track_start + sacd->frame++ / 75.0;
@@ -205,6 +231,6 @@ extern "C" int iina_sacd_read_frame(iina_sacd *sacd, void *data,
         sacd->track_start = track_start(sacd, sacd->active_area,
                                         sacd->active_track);
         sacd->frame = 0;
-        sacd->disc.set_track(sacd->active_track, sacd->active_area, 0);
+        select_track(sacd, sacd->active_track, 0);
     }
 }

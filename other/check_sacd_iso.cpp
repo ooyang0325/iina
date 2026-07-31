@@ -65,6 +65,23 @@ int main(int argc, char **argv)
                        dst ? "DST" : "DSD");
             }
         }
+        assert(iina_sacd_select_area(sacd, 0));
+        double previous = -1;
+        int frames = 0;
+        for (;;) {
+            size_t size = 0;
+            int dst = 0;
+            double pts = 0;
+            int result = iina_sacd_read_frame(sacd, frame, sizeof(frame),
+                                              &size, &dst, &pts);
+            assert(result >= 0);
+            if (!result)
+                break;
+            assert(pts > previous);
+            previous = pts;
+            frames++;
+        }
+        printf("timeline_frames=%d final_pts=%.6f\n", frames, previous);
         iina_sacd_close(sacd);
         return 0;
     }
