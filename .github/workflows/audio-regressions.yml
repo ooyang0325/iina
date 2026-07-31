@@ -76,7 +76,31 @@ jobs:
       - name: Build IINA
         run: |
           xcodebuild -project iina.xcodeproj -scheme iina -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/IINA-DerivedData" \
             ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build -quiet
+
+      - name: Package IINA
+        id: package
+        run: |
+          app="$RUNNER_TEMP/IINA-DerivedData/Build/Products/Release/IINA.app"
+          version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+            "$app/Contents/Info.plist")
+          archive="IINA-${version}-Dolby-arm64.zip"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict "$app"
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$archive"
+          shasum -a 256 "$archive" > "${archive}.sha256"
+          echo "name=IINA-${version}-Dolby-arm64" >> "$GITHUB_OUTPUT"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Upload IINA
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.archive }}.sha256
+          compression-level: 0
 
       - name: Upload test logs
         if: failure()

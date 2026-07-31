@@ -78,8 +78,15 @@ fetch() {
         git clone --filter=blob:none "$url" "$dir"
     fi
     echo ">> $name -> $rev"
-    git -C "$dir" fetch --quiet origin "$rev" 2>/dev/null || git -C "$dir" fetch --quiet origin
-    git -C "$dir" -c advice.detachedHead=false checkout --quiet "$rev"
+    for attempt in 1 2 3; do
+        git -C "$dir" fetch --quiet origin "$rev" 2>/dev/null ||
+            git -C "$dir" fetch --quiet origin || true
+        if git -C "$dir" -c advice.detachedHead=false checkout --quiet "$rev"; then
+            return
+        fi
+        sleep $((attempt * 5))
+    done
+    return 1
 }
 
 # ---- Fraunhofer MPEG-H 3D Audio decoder -------------------------------------
