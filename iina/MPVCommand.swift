@@ -117,6 +117,8 @@ struct MPVCommand: RawRepresentable {
   static let audioRemove = MPVCommand("audio-remove")
   /** audio-reload [<id>] */
   static let audioReload = MPVCommand("audio-reload")
+  /** ao-reload */
+  static let aoReload = MPVCommand("ao-reload")
   /** video-add <url> [<flags> [<title> [<lang> [<albumart>]]]] */
   static let videoAdd = MPVCommand("video-add")
   /** video-remove [<id>] */

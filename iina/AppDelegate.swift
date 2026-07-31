@@ -146,6 +146,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       }
     case Preference.Key.audioExclusiveMode.rawValue:
       if change[.newKey] as? Bool == true {
+        if (Preference.string(for: .audioDevice) ?? "auto") == "auto" {
+          AudioDeviceControl.rememberDefaultOutputDeviceForExclusiveMode()
+        }
         if Preference.bool(for: .audioDriverEnableAVFoundation) {
           Logger.log("Audio exclusive mode enabled, switching the audio driver to Core Audio")
           Preference.set(false, for: .audioDriverEnableAVFoundation)

@@ -372,8 +372,12 @@ class MPVController: NSObject {
     let configured = Preference.string(for: .audioDevice) ?? "auto"
     guard configured == "auto",
           Preference.bool(for: PK.audioExclusiveMode),
-          !Preference.bool(for: PK.audioDriverEnableAVFoundation),
-          let uid = AudioDeviceControl.defaultOutputDeviceUID else { return configured }
+          !Preference.bool(for: PK.audioDriverEnableAVFoundation) else { return configured }
+    if let remembered = AudioDeviceControl.rememberedExclusiveOutputDeviceUID {
+      return "coreaudio/\(remembered)"
+    }
+    AudioDeviceControl.rememberDefaultOutputDeviceForExclusiveMode()
+    guard let uid = AudioDeviceControl.rememberedExclusiveOutputDeviceUID else { return configured }
     return "coreaudio/\(uid)"
   }
 

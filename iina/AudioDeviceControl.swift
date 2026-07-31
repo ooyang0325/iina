@@ -19,6 +19,20 @@ import Foundation
 ///   AVFoundation, and it needs neither exclusive access nor hog mode.
 enum AudioDeviceControl {
 
+  /// The concrete device that `auto` referred to when exclusive mode was enabled.
+  /// Persisted so a crash while hogging cannot make the next launch pin the device
+  /// macOS temporarily promoted to system default instead.
+  static let exclusiveAutoDeviceUIDKey = "audioExclusiveAutoDeviceUID"
+
+  static func rememberDefaultOutputDeviceForExclusiveMode() {
+    guard let uid = defaultOutputDeviceUID else { return }
+    UserDefaults.standard.set(uid, forKey: exclusiveAutoDeviceUIDKey)
+  }
+
+  static var rememberedExclusiveOutputDeviceUID: String? {
+    UserDefaults.standard.string(forKey: exclusiveAutoDeviceUIDKey)
+  }
+
   private static func address(
     _ selector: AudioObjectPropertySelector,
     _ scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal

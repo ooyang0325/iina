@@ -1339,7 +1339,7 @@ class PlayerCore: NSObject {
             -> \(Int(target)) Hz\(matched ? "" : " (device refused)")
             """)
         guard matched else { return }
-        self.mpv.command(.seek, args: ["0", "relative+exact"], checkError: false)
+        self.mpv.command(.aoReload, args: [], checkError: false)
       }
     }
   }
@@ -2415,7 +2415,7 @@ class PlayerCore: NSObject {
             return
           }
           self.log("D10s entered exclusive mode, reopening the settled audio output")
-          self.mpv.command(.seek, args: ["0", "relative+exact"], checkError: false)
+          self.mpv.command(.aoReload, args: [], checkError: false)
         }
       }
     }
