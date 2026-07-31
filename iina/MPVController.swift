@@ -487,7 +487,8 @@ class MPVController: NSObject {
     setUserOption(PK.maxVolume, type: .int, forName: MPVOption.Audio.volumeMax, level: .verbose)
 
     chkErr(setOptionString(MPVOption.Audio.ad, "orender", verboseIfDefault: true))
-    chkErr(setOptionString(MPVOption.Audio.adOrenderChannelMode, "spatial",
+    // Object presentations stay spatial; plain channel streams use the native decoder.
+    chkErr(setOptionString(MPVOption.Audio.adOrenderChannelMode, "host",
                            verboseIfDefault: true))
     chkErr(setOptionString(MPVOption.Audio.adOrenderOutputChannelMapping, "by-name",
                            verboseIfDefault: true))

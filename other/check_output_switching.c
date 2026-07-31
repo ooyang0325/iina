@@ -273,7 +273,9 @@ int main(int argc, char **argv)
 
     char *source_channels = get_property_fn(mpv, "audio-params/channel-count");
     char *source_codec = get_property_fn(mpv, "audio-codec-name");
-    if (source_channels && atoi(source_channels) > 2) {
+    bool is_dsd = source_codec && (!strncmp(source_codec, "dsd", 3) ||
+                                   !strcmp(source_codec, "dst"));
+    if (is_dsd && source_channels && atoi(source_channels) > 2) {
         printf("\nenabling DoP for multichannel DSD\n");
         set_property_fn(mpv, "audio-spdif",
                         "dst,dsd_lsbf,dsd_msbf,dsd_lsbf_planar,dsd_msbf_planar");
@@ -292,7 +294,7 @@ int main(int argc, char **argv)
         playback_advances(mpv, "multichannel DoP fallback", &failures);
         set_property_fn(mpv, "audio-spdif", "");
         pump(mpv, 2);
-    } else if (source_codec && strstr(source_codec, "dsd")) {
+    } else if (is_dsd) {
         printf("\nswitching stereo DSD from PCM to DoP\n");
         set_property_fn(mpv, "audio-spdif",
                         "dst,dsd_lsbf,dsd_msbf,dsd_lsbf_planar,dsd_msbf_planar");
