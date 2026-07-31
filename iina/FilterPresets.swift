@@ -10,23 +10,6 @@ import Foundation
 
 fileprivate typealias PM = FilterParameter
 
-fileprivate func ffmpegEscape(_ value: String) -> String {
-  return value
-    .replacingOccurrences(of: "\\", with: "\\\\")
-    .replacingOccurrences(of: "'", with: "\\'")
-    .replacingOccurrences(of: ":", with: "\\:")
-    .replacingOccurrences(of: ";", with: "\\;")
-    .replacingOccurrences(of: ",", with: "\\,")
-    .replacingOccurrences(of: "[", with: "\\[")
-    .replacingOccurrences(of: "]", with: "\\]")
-}
-
-fileprivate extension String {
-  var ffmpegFilterGraphEscaped: String {
-    return ffmpegEscape(ffmpegEscape(self))
-  }
-}
-
 /**
  A filter preset or template, which contains the filter name and definitions of all parameters.
  */
@@ -305,7 +288,7 @@ extension FilterPreset {
         "width_type": "q",
         "width": instance.value(for: "q").stringValue,
         "channels": instance.value(for: "channels").stringValue,
-        "precision": "double"
+        "precision": "f64"
       ])
     },
     FilterPreset("dsp_autoeq", params: [
@@ -331,20 +314,20 @@ extension FilterPreset {
       "attack": PM.text(defaultValue: "20"),
       "release": PM.text(defaultValue: "200")
     ], paramOrder: "detection_frequency:detection_q:threshold:target_frequency:target_q:mode:filter_type:ratio:range:attack:release") { instance in
-      return MPVFilter(lavfiName: "adynamicequalizer", label: nil, paramDict: [
-        "dfrequency": instance.value(for: "detection_frequency").stringValue,
-        "dqfactor": instance.value(for: "detection_q").stringValue,
-        "threshold": instance.value(for: "threshold").stringValue,
-        "tfrequency": instance.value(for: "target_frequency").stringValue,
-        "tqfactor": instance.value(for: "target_q").stringValue,
-        "mode": instance.value(for: "mode").stringValue,
-        "tftype": instance.value(for: "filter_type").stringValue,
-        "ratio": instance.value(for: "ratio").stringValue,
-        "range": instance.value(for: "range").stringValue,
-        "attack": instance.value(for: "attack").stringValue,
-        "release": instance.value(for: "release").stringValue,
-        "precision": "double"
-      ])
+      let graph = AudiophileDSP.dynamicEqualizer(
+        detectionFrequency: instance.value(for: "detection_frequency").stringValue,
+        detectionQ: instance.value(for: "detection_q").stringValue,
+        threshold: instance.value(for: "threshold").stringValue,
+        targetFrequency: instance.value(for: "target_frequency").stringValue,
+        targetQ: instance.value(for: "target_q").stringValue,
+        mode: instance.value(for: "mode").stringValue,
+        filterType: instance.value(for: "filter_type").stringValue,
+        ratio: instance.value(for: "ratio").stringValue,
+        range: instance.value(for: "range").stringValue,
+        attack: instance.value(for: "attack").stringValue,
+        release: instance.value(for: "release").stringValue
+      )
+      return MPVFilter(name: "lavfi", label: nil, paramString: "[\(graph)]")
     },
     FilterPreset("dsp_convolution", params: [
       "file": PM.file(extensions: ["wav", "wave", "flac", "aif", "aiff", "caf"]),
@@ -353,12 +336,13 @@ extension FilterPreset {
       "irnorm": PM.text(defaultValue: "1"),
       "precision": PM.choose(from: ["double", "float", "auto"])
     ], paramOrder: "file:dry:wet:irnorm:precision") { instance in
-      let file = instance.value(for: "file").stringValue.ffmpegFilterGraphEscaped
-      let graph = """
-        amovie=filename=\(file)[ir];[in][ir]afir=dry=\(instance.value(for: "dry").stringValue):\
-        wet=\(instance.value(for: "wet").stringValue):irnorm=\(instance.value(for: "irnorm").stringValue):\
-        precision=\(instance.value(for: "precision").stringValue)[out]
-        """
+      let graph = AudiophileDSP.convolution(
+        file: instance.value(for: "file").stringValue,
+        dry: instance.value(for: "dry").stringValue,
+        wet: instance.value(for: "wet").stringValue,
+        irNormalization: instance.value(for: "irnorm").stringValue,
+        precision: instance.value(for: "precision").stringValue
+      )
       return MPVFilter(name: "lavfi", label: nil, paramString: "[\(graph)]")
     },
     FilterPreset("dsp_crossfeed", params: [
@@ -374,14 +358,12 @@ extension FilterPreset {
       "main_gain": PM.text(defaultValue: "0"),
       "sub_gain": PM.text(defaultValue: "0")
     ], paramOrder: "frequency:order:main_gain:sub_gain") { instance in
-      let graph = """
-        [in]acrossover=split=\(instance.value(for: "frequency").stringValue):\
-        order=\(instance.value(for: "order").stringValue):precision=double[low][high];\
-        [low]pan=mono|c0=0.5*c0+0.5*c1,\
-        volume=volume=\(instance.value(for: "sub_gain").stringValue)dB:precision=double[sub];\
-        [high]volume=volume=\(instance.value(for: "main_gain").stringValue)dB:precision=double[mains];\
-        [mains][sub]join=inputs=2:channel_layout=2.1:map=0.FL-FL|0.FR-FR|1.FC-LFE[out]
-        """
+      let graph = AudiophileDSP.bassManagement(
+        frequency: instance.value(for: "frequency").stringValue,
+        order: instance.value(for: "order").stringValue,
+        mainGain: instance.value(for: "main_gain").stringValue,
+        subGain: instance.value(for: "sub_gain").stringValue
+      )
       return MPVFilter(name: "lavfi", label: nil, paramString: "[\(graph)]")
     },
     FilterPreset("dsp_speaker_mix", params: [
@@ -408,15 +390,16 @@ extension FilterPreset {
       "phase": PM.text(defaultValue: "0"),
       "delay": PM.text(defaultValue: "0")
     ], paramOrder: "mode:width:balance:left_polarity:right_polarity:phase:delay") { instance in
-      return MPVFilter(lavfiName: "stereotools", label: nil, paramDict: [
-        "mode": instance.value(for: "mode").stringValue,
-        "slev": instance.value(for: "width").stringValue,
-        "balance_out": instance.value(for: "balance").stringValue,
-        "phasel": instance.value(for: "left_polarity").stringValue,
-        "phaser": instance.value(for: "right_polarity").stringValue,
-        "phase": instance.value(for: "phase").stringValue,
-        "delay": instance.value(for: "delay").stringValue
-      ])
+      let graph = AudiophileDSP.stereoCorrection(
+        mode: instance.value(for: "mode").stringValue,
+        width: instance.value(for: "width").stringValue,
+        balance: instance.value(for: "balance").stringValue,
+        leftPolarity: instance.value(for: "left_polarity").stringValue,
+        rightPolarity: instance.value(for: "right_polarity").stringValue,
+        phase: instance.value(for: "phase").stringValue,
+        delay: instance.value(for: "delay").stringValue
+      )
+      return MPVFilter(name: "lavfi", label: nil, paramString: "[\(graph)]")
     },
     FilterPreset("dsp_limiter", params: [
       "ceiling": PM.text(defaultValue: "0.891251"),

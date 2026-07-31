@@ -54,7 +54,8 @@ run "raw DST to DSD" env DYLD_LIBRARY_PATH="$PREFIX/lib" "$PREFIX/check_dst_raw"
 
 # AutoEQ and REW export the same Equalizer APO text format. Keep its small parser independent
 # from AppKit so malformed presets cannot silently generate a partial filter chain.
-swiftc "$REPO_ROOT/iina/EqualizerAPOParser.swift" "$REPO_ROOT/other/check_equalizer_apo.swift" \
+swiftc "$REPO_ROOT/iina/EqualizerAPOParser.swift" "$REPO_ROOT/iina/AudiophileDSP.swift" \
+    "$REPO_ROOT/other/check_equalizer_apo.swift" \
     -o "$PREFIX/check_equalizer_apo"
 run "Equalizer APO import" "$PREFIX/check_equalizer_apo"
 

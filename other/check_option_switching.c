@@ -65,7 +65,22 @@ static void check_filter(mpv_handle *mpv, const char *name, const char *filter,
         return;
     }
     resumes(mpv, name, failures);
+    char *active = get_property_fn(mpv, "af");
+    bool installed = active && active[0];
+    free_fn(active);
+    if (!installed) {
+        fprintf(stderr, "FAIL  %s failed during initialization\n", name);
+        (*failures)++;
+        return;
+    }
     set_property_fn(mpv, "af", "");
+    active = get_property_fn(mpv, "af");
+    bool removed = !active || !active[0];
+    free_fn(active);
+    if (!removed) {
+        fprintf(stderr, "FAIL  %s was not removed\n", name);
+        (*failures)++;
+    }
 }
 
 static void put_le16(FILE *file, unsigned value)
@@ -199,11 +214,14 @@ int main(int argc, char **argv)
         {"DSP headroom", "lavfi=[volume=volume=-3dB:precision=double]"},
         {"DSP parametric EQ",
          "lavfi=[equalizer=frequency=1000:gain=-3:width_type=q:width=1:"
-         "channels=all:precision=double]"},
+         "channels=all:precision=f64]"},
         {"DSP imported AutoEQ",
          "lavfi=[volume=volume=-6dB:precision=double,"
-         "equalizer=frequency=105:width_type=q:width=1.2:gain=-3:precision=double,"
-         "lowshelf=frequency=120:width_type=q:width=0.7:gain=1.5:precision=double]"},
+         "equalizer=frequency=105:width_type=q:width=1.2:gain=-3:precision=f64,"
+         "lowshelf=frequency=120:width_type=q:width=0.7:gain=1.5:precision=f64]"},
+        {"DSP imported GraphicEQ",
+         "lavfi=[firequalizer=gain='cubic_interpolate(f)':"
+         "gain_entry='entry(20,-10.1);entry(1000,0);entry(19871,-3.5)']"},
         {"DSP dynamic EQ",
          "lavfi=[adynamicequalizer=dfrequency=1000:dqfactor=1:threshold=50:"
          "tfrequency=1000:tqfactor=1:mode=cutabove:tftype=bell:ratio=2:"

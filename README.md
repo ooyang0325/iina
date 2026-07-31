@@ -51,7 +51,7 @@ disable the rack when using encoded passthrough or DoP.
 
 FIR convolution accepts WAV, FLAC, AIFF, or CAF impulse responses. AutoEQ/REW
 import accepts Equalizer APO `ParametricEQ.txt` files with preamp, peak, and
-low/high-shelf entries; `GraphicEQ.txt` is intentionally not approximated.
+low/high-shelf entries, plus interpolated `GraphicEQ.txt` curves.
 Stereo 2.1 bass management emits FL, FR, and LFE channels and therefore requires
 an output device that exposes a compatible multichannel layout.
 

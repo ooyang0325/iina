@@ -161,6 +161,7 @@
 		84EB1F071D2F5E76004FA5A1 /* Utility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84EB1F061D2F5E76004FA5A1 /* Utility.swift */; };
 		84EC12831F4F939000137C1E /* FilterPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84EC12821F4F939000137C1E /* FilterPresets.swift */; };
 		A1D5A00231A5D00100D5A001 /* EqualizerAPOParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D5A00131A5D00100D5A001 /* EqualizerAPOParser.swift */; };
+		A1D5A00431A5D00100D5A001 /* AudiophileDSP.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D5A00331A5D00100D5A001 /* AudiophileDSP.swift */; };
 		84EC12861F504D2500137C1E /* FilterPresets.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84EC12881F504D2500137C1E /* FilterPresets.strings */; };
 		84ED99FF1E009C8100A5159B /* PrefAdvancedViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84ED99FD1E009C8100A5159B /* PrefAdvancedViewController.swift */; };
 		84F5D4951E44D5230060A838 /* KeyBindingCriterion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F5D4941E44D5230060A838 /* KeyBindingCriterion.swift */; };
@@ -1295,6 +1296,7 @@
 		84EB1F061D2F5E76004FA5A1 /* Utility.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utility.swift; sourceTree = "<group>"; };
 		84EC12821F4F939000137C1E /* FilterPresets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FilterPresets.swift; sourceTree = "<group>"; };
 		A1D5A00131A5D00100D5A001 /* EqualizerAPOParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerAPOParser.swift; sourceTree = "<group>"; };
+		A1D5A00331A5D00100D5A001 /* AudiophileDSP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiophileDSP.swift; sourceTree = "<group>"; };
 		84EC12871F504D2500137C1E /* Base */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Base; path = Base.lproj/FilterPresets.strings; sourceTree = "<group>"; };
 		84EC12891F504D3B00137C1E /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/FilterPresets.strings"; sourceTree = "<group>"; };
 		84ED99FD1E009C8100A5159B /* PrefAdvancedViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PrefAdvancedViewController.swift; sourceTree = "<group>"; };
@@ -1802,6 +1804,7 @@
 				84C8D58E1D794CE600D98A0E /* MPVFilter.swift */,
 				84EC12821F4F939000137C1E /* FilterPresets.swift */,
 				A1D5A00131A5D00100D5A001 /* EqualizerAPOParser.swift */,
+				A1D5A00331A5D00100D5A001 /* AudiophileDSP.swift */,
 				84EC12881F504D2500137C1E /* FilterPresets.strings */,
 				E3CB75BC1FDACB82004DB10A /* SavedFilter.swift */,
 				84C6D3631EB276E9009BF721 /* PlaybackHistory.swift */,
@@ -2699,6 +2702,7 @@
 				84F5D4991E44E8AC0060A838 /* KeyBindingDataLoader.swift in Sources */,
 				84EC12831F4F939000137C1E /* FilterPresets.swift in Sources */,
 				A1D5A00231A5D00100D5A001 /* EqualizerAPOParser.swift in Sources */,
+				A1D5A00431A5D00100D5A001 /* AudiophileDSP.swift in Sources */,
 				E318D9112FE5E26C0025DBC5 /* SidebarChaptersPane.swift in Sources */,
 				E374160F20F3AF7E00B4F7F9 /* PrefUtilsViewController.swift in Sources */,
 				E31E62FD2FD8F4C9005527B2 /* OSCBottomView.swift in Sources */,

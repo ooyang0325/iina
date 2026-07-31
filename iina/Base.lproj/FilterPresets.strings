@@ -63,8 +63,8 @@
 "dsp_parametric_eq.q" = "Q factor";
 "dsp_parametric_eq.channels" = "Channels (all, FL, FR, ...)";
 
-"dsp_autoeq" = "AutoEQ / REW Parametric EQ";
-"dsp_autoeq.file" = "Equalizer APO text file";
+"dsp_autoeq" = "AutoEQ / REW Equalizer";
+"dsp_autoeq.file" = "Equalizer APO ParametricEQ or GraphicEQ text file";
 
 "dsp_dynamic_eq" = "Dynamic EQ";
 "dsp_dynamic_eq.detection_frequency" = "Detection frequency (Hz)";
