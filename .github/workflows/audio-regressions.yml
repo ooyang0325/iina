@@ -65,6 +65,14 @@ jobs:
       - name: Run checks
         run: other/run_checks.sh
 
+      - name: Download yt-dlp
+        run: |
+          mkdir -p deps/executable
+          curl --fail --location --retry 3 \
+            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos \
+            --output deps/executable/youtube-dl
+          chmod +x deps/executable/youtube-dl
+
       - name: Build IINA
         run: |
           xcodebuild -project iina.xcodeproj -scheme iina -configuration Release \
