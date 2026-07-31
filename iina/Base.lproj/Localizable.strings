@@ -413,7 +413,7 @@
 "keymapping.message" = "Press any key to record.";
 
 "filter.video_filters" = "Video Filters";
-"filter.audio_filters" = "Audio Filters";
+"filter.audio_filters" = "Audio DSP Rack";
 
 "hwdec.no" = "Disable hardware decoding.";
 "hwdec.auto" = "Enable hardware decoding. However, most of the video filters won't work properly.";

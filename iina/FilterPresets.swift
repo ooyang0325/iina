@@ -10,6 +10,23 @@ import Foundation
 
 fileprivate typealias PM = FilterParameter
 
+fileprivate func ffmpegEscape(_ value: String) -> String {
+  return value
+    .replacingOccurrences(of: "\\", with: "\\\\")
+    .replacingOccurrences(of: "'", with: "\\'")
+    .replacingOccurrences(of: ":", with: "\\:")
+    .replacingOccurrences(of: ";", with: "\\;")
+    .replacingOccurrences(of: ",", with: "\\,")
+    .replacingOccurrences(of: "[", with: "\\[")
+    .replacingOccurrences(of: "]", with: "\\]")
+}
+
+fileprivate extension String {
+  var ffmpegFilterGraphEscaped: String {
+    return ffmpegEscape(ffmpegEscape(self))
+  }
+}
+
 /**
  A filter preset or template, which contains the filter name and definitions of all parameters.
  */
@@ -32,7 +49,7 @@ class FilterPreset {
   var transformer: Transformer
 
   var localizedName: String {
-    return FilterPreset.l10nDic[name] ?? name
+    return FilterPreset.l10nDic[name] ?? FilterPreset.baseL10nDic[name] ?? name
   }
 
   init(_ name: String,
@@ -46,7 +63,8 @@ class FilterPreset {
   }
 
   func localizedParamName(_ param: String) -> String {
-    return FilterPreset.l10nDic["\(name).\(param)"] ?? param
+    let key = "\(name).\(param)"
+    return FilterPreset.l10nDic[key] ?? FilterPreset.baseL10nDic[key] ?? param
   }
 }
 
@@ -74,7 +92,7 @@ class FilterPresetInstance {
  */
 class FilterParameter {
   enum ParamType {
-    case text, int, float, choose
+    case text, file, int, float, choose
   }
   var type: ParamType
   var defaultValue: FilterParameterValue
@@ -90,6 +108,10 @@ class FilterParameter {
 
   static func text(defaultValue: String = "") -> FilterParameter {
     return FilterParameter(.text, defaultValue: FilterParameterValue(string: defaultValue))
+  }
+
+  static func file() -> FilterParameter {
+    return FilterParameter(.file, defaultValue: FilterParameterValue(string: ""))
   }
 
   static func int(min: Int, max: Int, step: Int = 1, defaultValue: Int = 0) -> FilterParameter {
@@ -161,6 +183,15 @@ extension FilterPreset {
     guard let filePath = Bundle.main.path(forResource: "FilterPresets", ofType: "strings"),
       let dic = NSDictionary(contentsOfFile: filePath) as? [String : String] else {
         return [:]
+    }
+    return dic
+  }()
+
+  static let baseL10nDic: [String: String] = {
+    guard let filePath = Bundle.main.path(forResource: "FilterPresets", ofType: "strings",
+                                          inDirectory: nil, forLocalization: "Base"),
+          let dic = NSDictionary(contentsOfFile: filePath) as? [String: String] else {
+      return [:]
     }
     return dic
   }()
@@ -251,6 +282,79 @@ extension FilterPreset {
   ]
 
   static let afPresets: [FilterPreset] = [
+    FilterPreset("dsp_headroom", params: [
+      "gain": PM.text(defaultValue: "-3")
+    ], paramOrder: "gain") { instance in
+      return MPVFilter(lavfiName: "volume", label: nil, paramDict: [
+        "volume": "\(instance.value(for: "gain").stringValue)dB",
+        "precision": "double"
+      ])
+    },
+    FilterPreset("dsp_parametric_eq", params: [
+      "frequency": PM.text(defaultValue: "1000"),
+      "gain": PM.text(defaultValue: "0"),
+      "q": PM.text(defaultValue: "1"),
+      "channels": PM.text(defaultValue: "all")
+    ], paramOrder: "frequency:gain:q:channels") { instance in
+      return MPVFilter(lavfiName: "equalizer", label: nil, paramDict: [
+        "frequency": instance.value(for: "frequency").stringValue,
+        "gain": instance.value(for: "gain").stringValue,
+        "width_type": "q",
+        "width": instance.value(for: "q").stringValue,
+        "channels": instance.value(for: "channels").stringValue,
+        "precision": "double"
+      ])
+    },
+    FilterPreset("dsp_convolution", params: [
+      "file": PM.file(),
+      "dry": PM.text(defaultValue: "0"),
+      "wet": PM.text(defaultValue: "1"),
+      "irnorm": PM.text(defaultValue: "1"),
+      "precision": PM.choose(from: ["double", "float", "auto"])
+    ], paramOrder: "file:dry:wet:irnorm:precision") { instance in
+      let file = instance.value(for: "file").stringValue.ffmpegFilterGraphEscaped
+      let graph = """
+        amovie=filename=\(file)[ir];[in][ir]afir=dry=\(instance.value(for: "dry").stringValue):\
+        wet=\(instance.value(for: "wet").stringValue):irnorm=\(instance.value(for: "irnorm").stringValue):\
+        precision=\(instance.value(for: "precision").stringValue)[out]
+        """
+      return MPVFilter(name: "lavfi", label: nil, paramString: "[\(graph)]")
+    },
+    FilterPreset("dsp_crossfeed", params: [
+      "strength": PM.text(defaultValue: "0.2"),
+      "range": PM.text(defaultValue: "0.5"),
+      "slope": PM.text(defaultValue: "0.5"),
+      "level_in": PM.text(defaultValue: "0.9"),
+      "level_out": PM.text(defaultValue: "1")
+    ], paramOrder: "strength:range:slope:level_in:level_out"),
+    FilterPreset("dsp_speaker_mix", params: [
+      "matrix": PM.text(defaultValue: "stereo|c0=c0|c1=c1")
+    ], paramOrder: "matrix") { instance in
+      return MPVFilter(lavfiName: "pan", label: nil,
+                       params: [instance.value(for: "matrix").stringValue])
+    },
+    FilterPreset("dsp_speaker_delay", params: [
+      "delays": PM.text(defaultValue: "0|0"),
+      "all": PM.choose(from: ["false", "true"])
+    ], paramOrder: "delays:all") { instance in
+      return MPVFilter(lavfiName: "adelay", label: nil, paramDict: [
+        "delays": instance.value(for: "delays").stringValue,
+        "all": instance.value(for: "all").stringValue
+      ])
+    },
+    FilterPreset("dsp_limiter", params: [
+      "ceiling": PM.text(defaultValue: "0.891251"),
+      "attack": PM.text(defaultValue: "5"),
+      "release": PM.text(defaultValue: "50")
+    ], paramOrder: "ceiling:attack:release") { instance in
+      return MPVFilter(lavfiName: "alimiter", label: nil, paramDict: [
+        "limit": instance.value(for: "ceiling").stringValue,
+        "attack": instance.value(for: "attack").stringValue,
+        "release": instance.value(for: "release").stringValue,
+        "level": "false",
+        "latency": "true"
+      ])
+    },
     customMPVFilterPreset,
     customFFmpegFilterPreset
   ]

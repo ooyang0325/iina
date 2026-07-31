@@ -53,3 +53,38 @@
 "custom_ffmpeg" = "Custom (FFmpeg)";
 "custom_ffmpeg.name" = "Filter name";
 "custom_ffmpeg.string" = "Filter value";
+
+"dsp_headroom" = "Headroom Management";
+"dsp_headroom.gain" = "Gain (dB; use a negative value)";
+
+"dsp_parametric_eq" = "Parametric EQ Band";
+"dsp_parametric_eq.frequency" = "Center frequency (Hz)";
+"dsp_parametric_eq.gain" = "Gain (dB)";
+"dsp_parametric_eq.q" = "Q factor";
+"dsp_parametric_eq.channels" = "Channels (all, FL, FR, ...)";
+
+"dsp_convolution" = "FIR Convolution";
+"dsp_convolution.file" = "Impulse response audio file";
+"dsp_convolution.dry" = "Dry gain";
+"dsp_convolution.wet" = "Wet gain";
+"dsp_convolution.irnorm" = "IR normalization (-1 disables it)";
+"dsp_convolution.precision" = "Processing precision";
+
+"dsp_crossfeed" = "Headphone Crossfeed";
+"dsp_crossfeed.strength" = "Strength (0-1)";
+"dsp_crossfeed.range" = "Soundstage width (0-1)";
+"dsp_crossfeed.slope" = "Curve slope (0.01-1)";
+"dsp_crossfeed.level_in" = "Input level (0-1)";
+"dsp_crossfeed.level_out" = "Output level (0-1)";
+
+"dsp_speaker_mix" = "Speaker Channel Matrix";
+"dsp_speaker_mix.matrix" = "FFmpeg pan matrix";
+
+"dsp_speaker_delay" = "Speaker Time Alignment";
+"dsp_speaker_delay.delays" = "Per-channel delay in ms, samples (S), or seconds (s), separated by |";
+"dsp_speaker_delay.all" = "Apply the last delay to remaining channels";
+
+"dsp_limiter" = "Safety Limiter";
+"dsp_limiter.ceiling" = "Linear ceiling (0.891251 = -1 dBFS)";
+"dsp_limiter.attack" = "Attack (ms)";
+"dsp_limiter.release" = "Release (ms)";

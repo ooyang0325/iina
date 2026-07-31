@@ -493,6 +493,12 @@ class NewFilterSheetViewController: NSViewController, NSTableViewDelegate, NSTab
       label.usesSingleLineMode = true
       label.cell?.isScrollable = true
       return label
+    case .file:
+      let pathControl = NSPathControl(frame: NSRect(x: 0, y: 0,
+                                                   width: scrollContentView.frame.width - 8,
+                                                   height: 24))
+      pathControl.isEditable = true
+      return pathControl
     case .int:
       // Slider
       let slider = NSSlider(frame: NSRect(x: 0, y: 0,
@@ -522,12 +528,12 @@ class NewFilterSheetViewController: NSViewController, NSTableViewDelegate, NSTab
                                                  width: scrollContentView.frame.width - 8,
                                                  height: 26))
       popupBtn.addItems(withTitles: param.choices)
+      popupBtn.selectItem(withTitle: param.defaultValue.stringValue)
       return popupBtn
     }
   }
 
   @IBAction func sheetAddBtnAction(_ sender: Any) {
-    filterWindow.window!.endSheet(filterWindow.newFilterSheet, returnCode: .OK)
     guard let preset = currentPreset else { return }
     // create instance
     let instance = FilterPresetInstance(from: preset)
@@ -535,14 +541,28 @@ class NewFilterSheetViewController: NSViewController, NSTableViewDelegate, NSTab
       switch preset.params[name]!.type {
       case .text:
         instance.params[name] = FilterParameterValue(string: control.stringValue)
+      case .file:
+        guard let pathControl = control as? NSPathControl,
+              let path = pathControl.url?.path,
+              FileManager.default.fileExists(atPath: path) else {
+          Utility.showAlert("filter.incorrect", sheetWindow: filterWindow.newFilterSheet)
+          return
+        }
+        instance.params[name] = FilterParameterValue(string: path)
       case .int:
         instance.params[name] = FilterParameterValue(int: Int(control.intValue))
       case .float:
         instance.params[name] = FilterParameterValue(float: control.floatValue)
       case .choose:
-        instance.params[name] = FilterParameterValue(string: preset.params[name]!.choices[Int(control.intValue)])
+        guard let popupButton = control as? NSPopUpButton,
+              let choice = popupButton.titleOfSelectedItem else {
+          Utility.showAlert("filter.incorrect", sheetWindow: filterWindow.newFilterSheet)
+          return
+        }
+        instance.params[name] = FilterParameterValue(string: choice)
       }
     }
+    filterWindow.window!.endSheet(filterWindow.newFilterSheet, returnCode: .OK)
     // create filter
     if filterWindow.addFilter(preset.transformer(instance)) {
       PlayerCore.lastActive.sendOSD(.addFilter(preset.localizedName))

@@ -55,6 +55,18 @@ static bool resumes(mpv_handle *mpv, const char *stage, int *failures)
     return ok;
 }
 
+static void check_filter(mpv_handle *mpv, const char *name, const char *filter,
+                         int *failures)
+{
+    if (set_property_fn(mpv, "af", filter) < 0) {
+        fprintf(stderr, "FAIL  could not set %s\n", name);
+        (*failures)++;
+        return;
+    }
+    resumes(mpv, name, failures);
+    set_property_fn(mpv, "af", "");
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -63,7 +75,8 @@ int main(int argc, char **argv)
     }
     // A generated tone keeps the check self-contained; any decodable file works too.
     const char *file = argc > 2 ? argv[2]
-                                : "av://lavfi:sine=frequency=440:duration=600";
+                                : "av://lavfi:sine=frequency=440:duration=600,"
+                                  "aformat=channel_layouts=stereo";
 
     void *library = dlopen(argv[1], RTLD_NOW);
     if (!library) {
@@ -144,6 +157,26 @@ int main(int argc, char **argv)
     for (int n = 0; n < sizeof(restore) / sizeof(restore[0]); n++)
         set_property_fn(mpv, restore[n][0], restore[n][1]);
     resumes(mpv, "settings restored together", &failures);
+
+    const char *dsp[][2] = {
+        {"DSP headroom", "lavfi=[volume=volume=-3dB:precision=double]"},
+        {"DSP parametric EQ",
+         "lavfi=[equalizer=frequency=1000:gain=-3:width_type=q:width=1:"
+         "channels=all:precision=double]"},
+        {"DSP convolution",
+         "lavfi=[aevalsrc=1:d=0.1[ir];[in][ir]afir=dry=0:wet=1:"
+         "irnorm=1:precision=double[out]]"},
+        {"DSP crossfeed",
+         "lavfi=[crossfeed=strength=0.2:range=0.5:slope=0.5:"
+         "level_in=0.9:level_out=1]"},
+        {"DSP speaker matrix", "lavfi=[pan=stereo|c0=c0|c1=c1]"},
+        {"DSP speaker alignment", "lavfi=[adelay=delays=0|0:all=false]"},
+        {"DSP safety limiter",
+         "lavfi=[alimiter=limit=0.891251:attack=5:release=50:"
+         "level=false:latency=true]"},
+    };
+    for (int n = 0; n < sizeof(dsp) / sizeof(dsp[0]); n++)
+        check_filter(mpv, dsp[n][0], dsp[n][1], &failures);
 
     mpv_terminate_destroy_fn(mpv);
     dlclose(library);

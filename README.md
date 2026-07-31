@@ -31,6 +31,24 @@
 * Command line tool and browser extensions provided
 * In active development
 
+## Dolby and audiophile fork
+
+This branch extends IINA's normal playback path without replacing its mpv-based
+architecture:
+
+| Area | Implemented capability |
+|---|---|
+| Dolby Vision | Profiles 5, 7, and 8; per-frame L1/L2/L8 metadata; profile 7 FEL base/enhancement-layer composition |
+| Immersive audio | E-AC-3/TrueHD Atmos and DTS:X object-rendering paths, E-AC-3 AVFoundation passthrough, and native channel-based fallback |
+| Audiophile output | Core Audio exclusive access, physical sample-rate matching, hardware volume, USB DAC format recovery, and guarded format handoffs |
+| DSD and SACD | Native DSF/DFF, raw DSD over DoP 1.1, DST-to-DSD, and SACD ISO areas, tracks, chapters, and seeking |
+| Audiophile DSP | Ordered headroom, parametric EQ bands, FIR room/headphone correction, crossfeed, speaker matrix/time alignment, and safety limiting |
+| Diagnostics and delivery | Live signal-path Inspector, headless and hardware regression checks, and signed arm64 ZIP artifacts from GitHub Actions |
+
+The DSP rack is available from **Audio > Audio Filters...**. Modules can be
+combined, saved, and toggled as a signal chain. DSP operates on decoded PCM, so
+disable the rack when using encoded passthrough or DoP.
+
 ## Downloading
 
 You can get IINA through several sources. For the latest stable and beta releases, visit the [GitHub release page](https://github.com/iina/iina/releases) or the [IINA official website](https://iina.io/). If you want to try out the latest features and improvements before they are officially released, you can download the nightly builds from our [Nightly Download Page](https://iina.io/nightly/).
@@ -62,29 +80,32 @@ IINA uses mpv for media playback. To build IINA, you can either fetch copies of 
 ### Building with Dolby Vision and Dolby Atmos support
 
 This fork adds Dolby Vision (profile 5/7/8, per-frame L1 and the L2/L8 creative
-trims, and profile 7 FEL enhancement-layer composition) and Dolby Atmos object
-rendering. Those capabilities do not live in IINA itself — they come from three
-upstream projects, none of which ships a release containing them yet:
+trims, and profile 7 FEL enhancement-layer composition), immersive audio,
+DSD/DoP, and SACD ISO playback. Those capabilities do not live in IINA itself -
+they come from four upstream projects, none of which ships a release containing
+them yet:
 
 | Project | What it provides |
 |---|---|
 | FFmpeg (master) | the `dovi_split` bitstream filter, which separates the profile 7 enhancement layer out of the base stream |
 | libplacebo | Dolby Vision L2/L8 creative trims, and FEL composition |
-| mpv | the libmpv `gpu-next` render backend, BL+EL frame pairing, Atmos object rendering, and E-AC-3 passthrough to AVFoundation |
+| libsacd | Scarlet Book SACD ISO parsing and track extraction |
+| mpv | the libmpv `gpu-next` render backend, BL+EL frame pairing, immersive object rendering, E-AC-3 passthrough, and DoP output |
 
 The legacy libmpv `gpu` render backend discards Dolby Vision metadata before it
 reaches the renderer, which is why the `gpu-next` backend is required rather
 than merely preferred.
 
-To build all three from pinned sources and stage them into `deps/`:
+To build all four from pinned sources and stage them into `deps/`:
 
 ```console
 $ brew install meson ninja pkg-config nasm libass luajit uchardet \
-               libarchive libbluray little-cms2 dav1d
+               libarchive libbluray little-cms2 dav1d libsoxr rubberband \
+               libopenmpt jpeg-xl libssh libdvdnav libdvdread libdvdcss
 $ other/build_dv_atmos_deps.sh
 ```
 
-This takes a while, mostly for FFmpeg. Afterwards build IINA normally. Atmos
+This takes a while, mostly for FFmpeg. Afterwards build IINA normally. Immersive
 *object* rendering additionally needs the `liborender` engine installed at
 runtime (see [mgth/Omniphony](https://github.com/mgth/Omniphony)); without it
 playback falls back to normal channel-based decoding.
