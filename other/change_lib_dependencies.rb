@@ -116,7 +116,7 @@ while !libs.empty?
             File.join(folder, basename)
         end
 
-      unless File.exists?(dest)
+      unless File.exist?(dest)
         cp src, lib_folder, preserve: true
         libs << dest
         original_folder << File.dirname(src)
