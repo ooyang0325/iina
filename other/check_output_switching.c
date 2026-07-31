@@ -91,6 +91,49 @@ static AudioStreamBasicDescription physical_format(AudioStreamID stream)
 
 #define NON_MIXABLE 0x40
 
+// Deliberately reproduce the state left by an interrupted exclusive session: the DAC is
+// not hogged, but its physical stream is still non-mixable. The next exclusive open must
+// remember the mixable counterpart as the format to restore.
+static bool poison_with_nonmixable_format(AudioStreamID stream)
+{
+    AudioStreamBasicDescription current = physical_format(stream);
+    if (current.mFormatFlags & NON_MIXABLE)
+        return true;
+
+    AudioObjectPropertyAddress a = addr(kAudioStreamPropertyAvailablePhysicalFormats,
+                                        kAudioObjectPropertyScopeGlobal);
+    UInt32 size = 0;
+    if (AudioObjectGetPropertyDataSize(stream, &a, 0, NULL, &size) != noErr)
+        return false;
+    AudioStreamRangedDescription *formats = malloc(size);
+    if (AudioObjectGetPropertyData(stream, &a, 0, NULL, &size, formats) != noErr) {
+        free(formats);
+        return false;
+    }
+    bool changed = false;
+    for (int n = 0; n < size / sizeof(*formats) && !changed; n++) {
+        AudioStreamBasicDescription candidate = formats[n].mFormat;
+        if (!(candidate.mFormatFlags & NON_MIXABLE))
+            continue;
+        if (fabs(candidate.mSampleRate - current.mSampleRate) < 1.0 &&
+            candidate.mFormatID == current.mFormatID &&
+            candidate.mBitsPerChannel == current.mBitsPerChannel &&
+            candidate.mBytesPerFrame == current.mBytesPerFrame &&
+            candidate.mChannelsPerFrame == current.mChannelsPerFrame)
+        {
+            AudioObjectPropertyAddress format =
+                addr(kAudioStreamPropertyPhysicalFormat,
+                     kAudioObjectPropertyScopeGlobal);
+            changed = AudioObjectSetPropertyData(stream, &format, 0, NULL,
+                                                  sizeof(candidate),
+                                                  &candidate) == noErr;
+            usleep(500000);
+        }
+    }
+    free(formats);
+    return changed;
+}
+
 static void describe(const char *label, const AudioStreamBasicDescription *f)
 {
     printf("  %-28s %8.1f Hz %2u-bit flags 0x%-3x %s\n", label, f->mSampleRate,
@@ -191,6 +234,17 @@ int main(int argc, char **argv)
         return 77;
     }
     AudioStreamID stream = output_stream(device);
+    // Make the DAC the system default before poisoning it, exactly as it is when the user
+    // first enables exclusive mode. The fixed teardown must restore both facts.
+    AudioObjectPropertyAddress default_addr =
+        addr(kAudioHardwarePropertyDefaultOutputDevice,
+             kAudioObjectPropertyScopeGlobal);
+    AudioObjectSetPropertyData(kAudioObjectSystemObject, &default_addr, 0, NULL,
+                               sizeof(device), &device);
+    usleep(300000);
+    bool poisoned = poison_with_nonmixable_format(stream);
+    printf("prepared stale non-mixable state: %s\n", poisoned ? "yes" : "no");
+
     // mpv's --audio-device takes the UID, so look it up rather than making the caller
     // find it: the name is the only thing a person reliably knows.
     char *uid = string_prop(device, kAudioDevicePropertyDeviceUID);
@@ -412,7 +466,18 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL  device left non-mixable, other apps will burst\n");
         failures++;
     } else {
-        printf("PASS  device left in a mixable format\n");
+        printf("PASS  stale non-mixable state was healed\n");
+    }
+
+    AudioDeviceID default_after = kAudioObjectUnknown;
+    get_prop(kAudioObjectSystemObject, kAudioHardwarePropertyDefaultOutputDevice,
+             kAudioObjectPropertyScopeGlobal, &default_after,
+             sizeof(default_after));
+    if (default_after != device) {
+        fprintf(stderr, "FAIL  original default output device was not restored\n");
+        failures++;
+    } else {
+        printf("PASS  original default output device was restored\n");
     }
 
     // A handful of reloads across five output switches is expected; a runaway count means
