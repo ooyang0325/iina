@@ -504,6 +504,8 @@
 				<string>tta</string>
 				<string>tak</string>
 				<string>opus</string>
+				<string>dsf</string>
+				<string>dff</string>
 				<string>cue</string>
 			</array>
 			<key>CFBundleTypeIconFile</key>
