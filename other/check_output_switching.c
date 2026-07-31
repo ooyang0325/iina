@@ -14,7 +14,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 static AudioObjectPropertyAddress addr(AudioObjectPropertySelector selector,
@@ -106,6 +108,9 @@ static typeof(mpv_free) *free_fn;
 // output reacting to its own format change, which never settles, so playback never starts
 // and only a seek gets it going again.
 static int reload_requests;
+// Underruns mean the device ran out of samples and played whatever was in the buffer.
+// A steady stream of them is what a burst of noise sounds like.
+static int underruns;
 
 static void pump(mpv_handle *mpv, double seconds)
 {
@@ -115,6 +120,8 @@ static void pump(mpv_handle *mpv, double seconds)
             mpv_event_log_message *message = event->data;
             if (strstr(message->text, "Stream format changed"))
                 reload_requests++;
+            if (strstr(message->text, "underrun"))
+                underruns++;
         }
     }
 }
@@ -156,6 +163,22 @@ static bool playback_advances(mpv_handle *mpv, const char *stage, int *failures)
 
 int main(int argc, char **argv)
 {
+    // Re-executed as a child to hold the device from a separate process. Taking hog mode
+    // from within this process would prove nothing: Core Audio hands the device straight
+    // back to its existing owner, and mpv runs in this very process.
+    if (argc > 1 && !strcmp(argv[1], "--hold")) {
+        AudioDeviceID held = find_device(argc > 2 ? argv[2] : "D10s");
+        if (!held)
+            return 2;
+        pid_t self = getpid();
+        AudioObjectPropertyAddress a = addr(kAudioDevicePropertyHogMode,
+                                            kAudioObjectPropertyScopeGlobal);
+        if (AudioObjectSetPropertyData(held, &a, 0, NULL, sizeof(self), &self) != noErr)
+            return 2;
+        for (;;)
+            pause();
+    }
+
     if (argc < 3) {
         fprintf(stderr, "usage: %s <libmpv> <file> [device-name]\n", argv[0]);
         return 2;
@@ -257,13 +280,28 @@ int main(int argc, char **argv)
     }
     playback_advances(mpv, "switch to shared", &failures);
 
-    // And back again, which is the other half of the toggle.
+    // Turning exclusive mode on is the step that broke: the output could fail to take the
+    // device or to install its format and carry on regardless, playing samples built for
+    // a format the device was never put into. Watch for it saying so.
     printf("\nswitching back to exclusive\n");
     set_property_fn(mpv, "audio-exclusive", "yes");
     pump(mpv, 3);
     ao_name = get_property_fn(mpv, "current-ao");
     printf("  ao=%s\n", ao_name ?: "?");
+    bool exclusive_now = ao_name && !strcmp(ao_name, "coreaudio_exclusive");
     free_fn(ao_name);
+
+    AudioStreamBasicDescription reexclusive_as = physical_format(stream);
+    describe("during exclusive again:", &reexclusive_as);
+    // Whichever output won, the stream it is running on has to match it: exclusive output
+    // on a mixable stream means the format change was refused and the output kept going.
+    if (exclusive_now && !(reexclusive_as.mFormatFlags & NON_MIXABLE)) {
+        fprintf(stderr,
+                "FAIL  exclusive output is running on a stream it did not install\n");
+        failures++;
+    } else {
+        printf("PASS  output and stream format agree\n");
+    }
     playback_advances(mpv, "switch to exclusive", &failures);
 
     // Changing the output driver itself, which is the other switch the settings expose.
@@ -284,12 +322,92 @@ int main(int argc, char **argv)
     free_fn(ao_name);
     playback_advances(mpv, "switch to coreaudio", &failures);
 
+    // The case that actually bursts: something else already owns the device when
+    // exclusive mode is turned on. Holding it from here reproduces a second player, or
+    // this player's own previous output not yet let go of. Exclusive output cannot
+    // reprogram a device it does not own, and carrying on regardless is what produced
+    // noise; falling back to the shared output is the correct outcome.
+    printf("\nturning exclusive on while the device is owned elsewhere\n");
+    pid_t holder = fork();
+    if (holder == 0) {
+        execl(argv[0], argv[0], "--hold", name, (char *)NULL);
+        _exit(2);
+    }
+    sleep(2);
+    pid_t owner = -1;
+    get_prop(device, kAudioDevicePropertyHogMode, kAudioObjectPropertyScopeGlobal,
+             &owner, sizeof(owner));
+    if (holder <= 0 || owner != holder) {
+        printf("  could not hand the device to another process, skipping this stage\n");
+        if (holder > 0)
+            kill(holder, SIGTERM);
+    } else {
+        printf("  device now owned by pid %d\n", owner);
+        set_property_fn(mpv, "audio-exclusive", "yes");
+        pump(mpv, 4);
+        ao_name = get_property_fn(mpv, "current-ao");
+        AudioStreamBasicDescription contended_as = physical_format(stream);
+        printf("  ao=%s\n", ao_name ?: "?");
+        describe("while owned elsewhere:", &contended_as);
+        bool claims_exclusive = ao_name && !strcmp(ao_name, "coreaudio_exclusive");
+        free_fn(ao_name);
+        if (claims_exclusive) {
+            fprintf(stderr,
+                    "FAIL  exclusive output opened on a device it does not own\n");
+            failures++;
+        } else {
+            printf("PASS  fell back instead of pretending to own the device\n");
+        }
+        // No assertion on playback here: hog mode locks every other process out of the
+        // device, so nothing can come out of it until the owner lets go. What matters is
+        // that the output did not claim the device, and that it recovers below.
+        printf("  (no audio is possible while another process owns the device)\n");
+
+        // Handing the device back must let exclusive output take it, so a moment of
+        // contention does not cost the user exclusive mode for the rest of the session.
+        kill(holder, SIGTERM);
+        waitpid(holder, NULL, 0);
+        sleep(1);
+        set_property_fn(mpv, "audio-exclusive", "no");
+        pump(mpv, 2);
+        set_property_fn(mpv, "audio-exclusive", "yes");
+        pump(mpv, 4);
+        ao_name = get_property_fn(mpv, "current-ao");
+        printf("  ao after the device was handed back=%s\n", ao_name ?: "?");
+        bool recovered = ao_name && !strcmp(ao_name, "coreaudio_exclusive");
+        free_fn(ao_name);
+        if (!recovered) {
+            fprintf(stderr, "FAIL  exclusive output did not recover\n");
+            failures++;
+        } else {
+            printf("PASS  exclusive output recovered once the device was free\n");
+        }
+        playback_advances(mpv, "device handed back", &failures);
+        set_property_fn(mpv, "audio-exclusive", "no");
+        pump(mpv, 2);
+    }
+
     mpv_terminate_destroy_fn(mpv);
     sleep(2);
 
     AudioStreamBasicDescription after_as = physical_format(stream);
     printf("\n");
     describe("after quit:", &after_as);
+
+    // Exclusive output hogs the device; letting go of it again is what lets everything
+    // else, including this player's own shared output, use the device afterwards. A hog
+    // left behind cannot even be cleared by the process that set it once it has exited.
+    pid_t hog = -1;
+    get_prop(device, kAudioDevicePropertyHogMode, kAudioObjectPropertyScopeGlobal,
+             &hog, sizeof(hog));
+    printf("  %-28s %d\n", "hog owner after quit:", hog);
+    if (hog != -1) {
+        fprintf(stderr, "FAIL  device left hogged by pid %d\n", hog);
+        failures++;
+    } else {
+        printf("PASS  device is no longer hogged\n");
+    }
+
     if (after_as.mFormatFlags & NON_MIXABLE) {
         fprintf(stderr, "FAIL  device left non-mixable, other apps will burst\n");
         failures++;
@@ -306,6 +424,18 @@ int main(int argc, char **argv)
         failures++;
     } else {
         printf("PASS  output settled instead of reloading in a loop\n");
+    }
+
+    // Rebuilding an output drops whatever was queued, so a handful of underruns across
+    // this many switches is expected. A stream of them is the device being fed late or
+    // wrongly, which is what a burst of noise is.
+    printf("device underruns: %d\n", underruns);
+    if (underruns > 8) {
+        fprintf(stderr, "FAIL  %d device underruns, the device is being starved\n",
+                underruns);
+        failures++;
+    } else {
+        printf("PASS  device was kept fed\n");
     }
 
     dlclose(library);
