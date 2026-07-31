@@ -68,8 +68,7 @@ jobs:
       - name: Build IINA
         run: |
           xcodebuild -project iina.xcodeproj -scheme iina -configuration Release \
-            ARCHS=arm64 -disableAutomaticPackageResolution \
-            CODE_SIGNING_ALLOWED=NO build -quiet
+            ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build -quiet
 
       - name: Upload test logs
         if: failure()
