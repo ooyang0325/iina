@@ -20,7 +20,7 @@ class Utility {
     .sub: ["utf", "utf8", "utf-8", "idx", "sub", "srt", "smi", "rt", "ssa", "aqt", "jss", "js", "ass", "mks", "vtt", "sup", "scc", "lrc"]
   ]
   static let playableFileExt = supportedFileExt[.video]! + supportedFileExt[.audio]!
-  static let singleFilePlaylistExt = ["cue"]
+  static let singleFilePlaylistExt = ["cue", "iso"]
   static let multipleFilePlaylistExt = ["m3u", "m3u8", "pls"]
   static let playlistFileExt = singleFilePlaylistExt + multipleFilePlaylistExt
   static let blacklistExt = supportedFileExt[.sub]! + multipleFilePlaylistExt

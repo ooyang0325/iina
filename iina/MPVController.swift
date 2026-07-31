@@ -324,7 +324,7 @@ class MPVController: NSObject {
     if dts { codecs.append("dts") }
     if dtsHD { codecs.append("dts-hd") }
     if dsd && Preference.bool(for: PK.audioExclusiveMode) {
-      codecs.append(contentsOf: ["dsd_lsbf", "dsd_msbf", "dsd_lsbf_planar", "dsd_msbf_planar"])
+      codecs.append(contentsOf: ["dst", "dsd_lsbf", "dsd_msbf", "dsd_lsbf_planar", "dsd_msbf_planar"])
     }
     return codecs.joined(separator: ",")
   }

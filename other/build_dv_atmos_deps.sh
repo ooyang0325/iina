@@ -2,13 +2,13 @@
 #
 # Build the Dolby Vision / Dolby Atmos dependency stack for IINA.
 #
-# IINA itself only contains the player. The capabilities below live in three
-# other projects, none of which ship a release with them yet, so this script
-# builds all three from pinned sources and stages the result into deps/.
+# IINA itself only contains the player. This script builds the four pinned
+# dependencies below and stages the result into deps/.
 #
 #   FFmpeg     dovi_split bitstream filter -- splits the Profile 7 enhancement
 #              layer out of the base stream. Master only, in no release.
 #   libplacebo Dolby Vision L2/L8 creative trims, and FEL composition.
+#   libsacd    Scarlet Book/SACD ISO parsing and track extraction.
 #   mpv        libmpv 'gpu-next' render backend (the legacy 'gpu' backend
 #              discards Dolby Vision metadata before it reaches the renderer),
 #              BL+EL frame pairing, Atmos object rendering via liborender, and
@@ -42,13 +42,15 @@ JOBS="$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 MPEGH=0
 
 # Pinned revisions. These are the exact trees the shipped build was made from;
-# all three projects move fast, so floating them will eventually break.
-FFMPEG_URL="https://github.com/FFmpeg/FFmpeg.git"
-FFMPEG_REV="d43b1efd2e948f44cfac91f7a4325a3d927d6718"
+# the playback projects move fast, so floating them will eventually break.
+FFMPEG_URL="https://github.com/ooyang0325/FFmpeg.git"
+FFMPEG_REV="0fca971eca"
 PLACEBO_URL="https://github.com/ooyang0325/libplacebo.git"
 PLACEBO_REV="67032e7140fcd6978f553d12013c5c647b15f103"
 MPV_URL="https://github.com/ooyang0325/mpv.git"
-MPV_REV="63848bee5"
+MPV_REV="d56b6ded9"
+SACD_URL="https://github.com/Sound-Linux-More/sacd.git"
+SACD_REV="6cfc988eca603c770788b3fd489b192ae5d264e5"
 MPEGHDEC_URL="https://github.com/Fraunhofer-IIS/mpeghdec.git"
 MPEGHDEC_REV="4448b69"
 
@@ -102,6 +104,50 @@ if [ "$MPEGH" = 1 ]; then
     cp "$SRC/mpeghdec/LICENSE.txt" "$REPO_ROOT/deps/licenses/mpeghdec-LICENSE.txt"
 fi
 
+# ---- SACD ISO parser ---------------------------------------------------------
+# Only the parser and media reader are needed. FFmpeg already supplies the DSD
+# and DST decoders, and mpv owns playback, seeking, and track selection.
+fetch sacd "$SACD_URL" "$SACD_REV"
+SACD_STAMP="$PREFIX/.sacd-build-stamp"
+SACD_HASH="$(cat "$REPO_ROOT/other/sacd_bridge.cpp" "$REPO_ROOT/other/sacd_bridge.h" |
+             shasum -a 256 | cut -d' ' -f1)"
+if [ ! -f "$PREFIX/lib/libsacd.0.dylib" ] || \
+   [ "$(cat "$SACD_STAMP" 2>/dev/null)" != "$SACD_REV-$SACD_HASH" ]; then
+    echo ">> building libsacd"
+    mkdir -p "$PREFIX/lib" "$PREFIX/include" "$PREFIX/lib/pkgconfig"
+    clang++ -std=c++17 -O2 -dynamiclib -mmacosx-version-min=26.0 \
+        -I"$SRC/sacd/libsacd" -I"$REPO_ROOT/other" \
+        "$SRC/sacd/libsacd/sacd_media.cpp" \
+        "$SRC/sacd/libsacd/scarletbook.cpp" \
+        "$SRC/sacd/libsacd/sacd_disc.cpp" \
+        "$REPO_ROOT/other/sacd_bridge.cpp" \
+        -liconv \
+        -Wl,-install_name,@rpath/libsacd.0.dylib \
+        -o "$PREFIX/lib/libsacd.0.dylib"
+    ln -sf libsacd.0.dylib "$PREFIX/lib/libsacd.dylib"
+    cp "$REPO_ROOT/other/sacd_bridge.h" "$PREFIX/include/"
+    cat > "$PREFIX/lib/pkgconfig/sacd.pc" <<EOF
+prefix=$PREFIX
+libdir=\${prefix}/lib
+includedir=\${prefix}/include
+
+Name: sacd
+Description: SACD ISO parser bridge
+Version: 1
+Libs: -L\${libdir} -lsacd
+Cflags: -I\${includedir}
+EOF
+    echo "$SACD_REV-$SACD_HASH" > "$SACD_STAMP"
+fi
+mkdir -p "$REPO_ROOT/deps/licenses"
+cp "$SRC/sacd/LICENSE" "$REPO_ROOT/deps/licenses/libsacd-LICENSE.txt"
+
+echo ">> checking SACD ISO parser"
+clang++ -std=c++17 "$REPO_ROOT/other/check_sacd_iso.cpp" \
+    -I"$REPO_ROOT/other" -I"$SRC/sacd/libsacd" \
+    -L"$PREFIX/lib" -lsacd -o "$PREFIX/check_sacd_iso"
+DYLD_LIBRARY_PATH="$PREFIX/lib" "$PREFIX/check_sacd_iso"
+
 # ---- FFmpeg -----------------------------------------------------------------
 # Beyond the Dolby Vision work, these switches turn on decoders, filters and
 # protocols FFmpeg can build but does not by default. They are what the DSP,
@@ -141,6 +187,13 @@ if [ ! -f "$PREFIX/lib/libavcodec.dylib" ] || \
     echo "$FFMPEG_HASH" > "$FFMPEG_STAMP"
 fi
 
+echo ">> checking raw DST-to-DSD decoding"
+"$PKG_CONFIG" --cflags --libs libavcodec libavutil >/dev/null
+cc "$REPO_ROOT/other/check_dst_raw.c" \
+   $("$PKG_CONFIG" --cflags --libs libavcodec libavutil) \
+   -o "$PREFIX/check_dst_raw"
+DYLD_LIBRARY_PATH="$PREFIX/lib" "$PREFIX/check_dst_raw"
+
 # ---- libplacebo -------------------------------------------------------------
 fetch libplacebo "$PLACEBO_URL" "$PLACEBO_REV"
 if [ ! -f "$PREFIX/lib/pkgconfig/libplacebo.pc" ]; then
@@ -158,9 +211,9 @@ echo ">> building libmpv"
 # mpv gates dvdnav behind its own -Dgpl, and rubberband needs the library the
 # nonfree FFmpeg build drops, so both follow the same switch as above.
 if [ "$MPEGH" = 1 ]; then
-    MPV_GPL_OPTS=(-Dgpl=false -Drubberband=disabled -Ddvdnav=disabled)
+    MPV_GPL_OPTS=(-Dgpl=false -Drubberband=disabled -Ddvdnav=disabled -Dsacd=disabled)
 else
-    MPV_GPL_OPTS=(-Drubberband=enabled -Ddvdnav=enabled)
+    MPV_GPL_OPTS=(-Drubberband=enabled -Ddvdnav=enabled -Dsacd=enabled)
 fi
 ( cd "$SRC/mpv" && rm -rf build \
   && meson setup build --prefix="$PREFIX" --buildtype=release \
@@ -180,6 +233,9 @@ done
 
 echo ">> staging dylibs"
 rm -rf "$REPO_ROOT/deps/lib"
+# The legacy staging helper resolves direct @rpath dependencies beside libmpv.
+# Put the parser there; the closure pass below still rewrites and verifies it.
+cp "$PREFIX/lib/libsacd.0.dylib" "$SRC/mpv/build/"
 ruby "$REPO_ROOT/other/change_lib_dependencies.rb" "$BREW" \
      "$SRC/mpv/build/libmpv.2.dylib"
 

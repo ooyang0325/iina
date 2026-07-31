@@ -109,6 +109,7 @@ if [ "$BUILD" = gpl ]; then
     mpv RUBBERBAND "af_rubberband"
 fi
 mpv LIBARCHIVE   "archives"
+[ "$BUILD" = gpl ] && mpv SACD "SACD ISO"
 mpv LUA          "scripting"
 mpv UCHARDET     "subtitle charset detection"
 
