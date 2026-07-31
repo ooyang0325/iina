@@ -10,21 +10,15 @@ name: Audio regressions
 # a device and reprogram its stream format. Run other/run_hardware_checks.sh on the machine
 # the DAC is attached to before releasing anything that touches audio output.
 
-# Run this by hand from the Actions tab, or with `gh workflow run audio-regressions.yml`.
-#
-# Deliberately not run on push: the whole dependency stack (FFmpeg, libplacebo, mpv and the
-# SACD parser) is built from source here, which is far slower than a hosted runner's budget
-# allows, so every push produced a failing run rather than a useful signal. Locally the same
-# checks run in seconds against an already built stack:
-#
-#     other/run_checks.sh              # no hardware needed
-#     other/run_hardware_checks.sh     # needs the DAC attached
-#
-# Checks that need a real DAC cannot run on a hosted runner in any case: they take exclusive
-# control of a device and reprogram its stream format.
-
 on:
+  push:
+    branches: [ooyang0325-dolby-vision-atmos-research]
+  pull_request:
+    branches: [develop, ooyang0325-dolby-vision-atmos-research]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -33,15 +27,17 @@ concurrency:
 jobs:
   checks:
     name: Build and check
-    runs-on: macos-15
-    timeout-minutes: 120
+    runs-on: macos-26
+    timeout-minutes: 180
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install build dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
-          brew update --quiet
+          brew untap aws/tap 2>/dev/null || true
           brew install --quiet meson ninja pkg-config nasm libass luajit uchardet \
             libarchive libbluray little-cms2 dav1d libsoxr rubberband libopenmpt \
             jpeg-xl libssh libdvdnav libdvdread libiconv
@@ -50,7 +46,7 @@ jobs:
       # moving any of them rebuilds rather than silently testing the old stack.
       - name: Cache dependency stack
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             deps/build/prefix
@@ -76,8 +72,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO build -quiet
 
       - name: Upload test logs
-        if: always()
-        uses: actions/upload-artifact@v4
+        if: failure()
+        uses: actions/upload-artifact@v7
         with:
           name: test-logs
           path: deps/build/src/mpv/build/meson-logs/
