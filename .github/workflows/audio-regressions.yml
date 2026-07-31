@@ -1,0 +1,80 @@
+name: Audio regressions
+
+# Every check here corresponds to a bug that shipped once. Running them on each change is
+# what stops the same one coming back.
+#
+# The dependency stack is built from source, which is slow, so it is cached on the pinned
+# revisions in other/build_dv_atmos_deps.sh. A change to those revisions rebuilds it.
+#
+# Checks that need a real DAC cannot run on a hosted runner: they take exclusive control of
+# a device and reprogram its stream format. Run other/run_hardware_checks.sh on the machine
+# the DAC is attached to before releasing anything that touches audio output.
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'iina/**'
+      - 'other/**'
+      - 'Configs/**'
+      - 'iina.xcodeproj/**'
+      - '.github/workflows/audio-regressions.yml'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Build and check
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          brew update --quiet
+          brew install --quiet meson ninja pkg-config nasm libass luajit uchardet \
+            libarchive libbluray little-cms2 dav1d libsoxr rubberband libopenmpt \
+            jpeg-xl libssh libdvdnav libdvdread libiconv
+
+      # Keyed on the pinned revisions and on the sources compiled into the SACD bridge, so
+      # moving any of them rebuilds rather than silently testing the old stack.
+      - name: Cache dependency stack
+        id: deps-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps/build/prefix
+            deps/build/src
+            deps/lib
+            deps/include
+          key: deps-${{ runner.os }}-${{ hashFiles('other/build_dv_atmos_deps.sh', 'other/sacd_bridge.cpp', 'other/sacd_bridge.h') }}
+
+      - name: Build dependency stack
+        run: other/build_dv_atmos_deps.sh
+
+      # Asserts the decoders, filters and protocols the player depends on are compiled in,
+      # runs the SACD image parser against a synthetic Scarlet Book image, and checks that
+      # DST can hand back raw DSD. build_dv_atmos_deps.sh runs the last two itself as it
+      # goes; run_checks.sh repeats them so a cache hit still exercises them.
+      - name: Run checks
+        run: other/run_checks.sh
+
+      - name: Build IINA
+        run: |
+          xcodebuild -project iina.xcodeproj -scheme iina -configuration Release \
+            ARCHS=arm64 -disableAutomaticPackageResolution \
+            CODE_SIGNING_ALLOWED=NO build -quiet
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: deps/build/src/mpv/build/meson-logs/
+          if-no-files-found: ignore
