@@ -25,6 +25,9 @@ release is worth trusting on.
   longer mutes DoP and accidentally teaches the replacement output that mute-on
   was the device's original state. DoP stays enabled and locked in settings
   while PCM-to-DSD is active.
+- Merged current upstream `master` into the patched dependency branches:
+  mpv `104091ecf` includes mpv-player/mpv `1d1568614`, and libplacebo
+  `6e6cb8fe` includes haasn/libplacebo `4d82c689`.
 
 ---
 
