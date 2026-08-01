@@ -71,6 +71,15 @@ cc "$REPO_ROOT/other/check_option_switching.c" -I"$REPO_ROOT/deps/include" \
 run "audio option switching" "$PREFIX/check_option_switching" \
     "$SRC/mpv/build/libmpv.2.dylib"
 
+# Native AU views share the live effect instance. Teardown stays on the main
+# thread so JUCE and other third-party editors cannot outlive their Audio Unit.
+clang -fobjc-arc "$REPO_ROOT/other/check_audiounit_ui.m" \
+    -I"$REPO_ROOT/deps/include" "$SRC/mpv/build/libmpv.2.dylib" \
+    -framework AudioToolbox -framework Cocoa \
+    -Wl,-rpath,"$SRC/mpv/build" -Wl,-rpath,"$PREFIX/lib" \
+    -o "$PREFIX/check_audiounit_ui"
+run "Audio Unit native UI" "$PREFIX/check_audiounit_ui"
+
 printf '\n'
 if [ "$failures" -eq 0 ]; then
     echo "all checks passed"

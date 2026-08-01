@@ -11,7 +11,23 @@ release is worth trusting on.
 
 ---
 
-## Unreleased — Phase 5
+## Unreleased — Phase 6
+
+- Added native macOS Audio Unit effect hosting in mpv. Installed `aufx` and
+  `aumf` components appear in IINA's existing Audio Filters browser and run in
+  the same ordered decoded-PCM chain as the built-in DSP modules.
+- Audio Unit filters negotiate planar float PCM, preserve state across format
+  changes, report processing latency, provide bit-exact bypass, and save/load
+  binary property-list presets. Double-clicking an active unit opens its custom
+  Cocoa interface, with Apple's generic parameter view as the fallback.
+- Current audio filters can now be reordered by dragging. The existing saved
+  filter mechanism stores both the component identity and its state file, so no
+  second preset or chain system was added.
+- Pinned mpv `f3873afb4`; its 39 tests plus IINA's live option check cover AU
+  channel negotiation, latency reporting, bypass PCM identity, state reload,
+  and continued playback.
+
+### Phase 5
 
 - Added selectable r8brain upsampling using Aleksey Vaneev's pinned, MIT-licensed
   r8brain-free-src 7.2 implementation. It runs at mpv's final resampling boundary,
