@@ -22,10 +22,23 @@ static typeof(mpv_get_property_string) *get_property_fn;
 static typeof(mpv_set_property_string) *set_property_fn;
 static typeof(mpv_free) *free_fn;
 
+// mpv accepts an "af" value and reports it back before libavfilter has initialized the
+// graph. When init then fails, mpv drops the filter, logs the failure and keeps playing --
+// so "set returned 0", "af reads back non-empty" and "playback resumed" are all still true
+// for a filter that never ran. The only signal that survives is the log, so watch it.
+static int filter_errors;
+
 static void pump(mpv_handle *mpv, double seconds)
 {
-    for (double t = 0; t < seconds; t += 0.05)
-        wait_event_fn(mpv, 0.05);
+    for (double t = 0; t < seconds; t += 0.05) {
+        mpv_event *event = wait_event_fn(mpv, 0.05);
+        if (!event || event->event_id != MPV_EVENT_LOG_MESSAGE)
+            continue;
+        const char *text = ((mpv_event_log_message *)event->data)->text;
+        if (text && (strstr(text, "Audio filter initialized failed") ||
+                     strstr(text, "parsing the filter graph failed")))
+            filter_errors++;
+    }
 }
 
 static double time_pos(mpv_handle *mpv)
@@ -59,6 +72,7 @@ static bool resumes(mpv_handle *mpv, const char *stage, int *failures)
 static void check_filter(mpv_handle *mpv, const char *name, const char *filter,
                          int *failures)
 {
+    int errors_before = filter_errors;
     if (set_property_fn(mpv, "af", filter) < 0) {
         fprintf(stderr, "FAIL  could not set %s\n", name);
         (*failures)++;
@@ -70,6 +84,13 @@ static void check_filter(mpv_handle *mpv, const char *name, const char *filter,
     free_fn(active);
     if (!installed) {
         fprintf(stderr, "FAIL  %s failed during initialization\n", name);
+        (*failures)++;
+        return;
+    }
+    // The property says the filter is there. Only the log says whether it works.
+    if (filter_errors > errors_before) {
+        fprintf(stderr, "FAIL  %s was accepted but its filter graph failed to "
+                        "initialize\n", name);
         (*failures)++;
         return;
     }
@@ -141,6 +162,7 @@ int main(int argc, char **argv)
     LOAD(mpv_initialize);
     LOAD(mpv_command);
     LOAD(mpv_terminate_destroy);
+    LOAD(mpv_request_log_messages);
     wait_event_fn = dlsym(library, "mpv_wait_event");
     get_property_fn = dlsym(library, "mpv_get_property_string");
     set_property_fn = dlsym(library, "mpv_set_property_string");
@@ -165,6 +187,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL  mpv_initialize\n");
         return 2;
     }
+    // "error" includes fatal, which is the level lavfi uses for a graph parse failure.
+    mpv_request_log_messages_fn(mpv, "error");
 
     int failures = 0;
     const char *command[] = {"loadfile", file, NULL};

@@ -86,10 +86,21 @@ jobs:
           version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
             "$app/Contents/Info.plist")
           archive="IINA-${version}-Dolby-arm64.zip"
+          # Ad-hoc signature: no Team ID, cannot be notarized, and Gatekeeper will
+          # reject this on any machine that downloads it. It is enough to keep the
+          # bundle internally consistent for local use and nothing more, so do not
+          # describe the artifact as "signed" anywhere it is published.
           codesign --force --deep --sign - "$app"
           codesign --verify --deep --strict "$app"
           ditto -c -k --sequesterRsrc --keepParent "$app" "$archive"
           shasum -a 256 "$archive" > "${archive}.sha256"
+          {
+            echo "This build is **ad-hoc signed only**: no Developer ID, not notarized."
+            echo "macOS Gatekeeper will refuse to open it until you clear the quarantine"
+            echo "attribute yourself:"
+            echo
+            echo "    xattr -dr com.apple.quarantine /path/to/IINA.app"
+          } > GATEKEEPER.txt
           echo "name=IINA-${version}-Dolby-arm64" >> "$GITHUB_OUTPUT"
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
 
@@ -100,6 +111,7 @@ jobs:
           path: |
             ${{ steps.package.outputs.archive }}
             ${{ steps.package.outputs.archive }}.sha256
+            GATEKEEPER.txt
           compression-level: 0
 
       - name: Upload test logs

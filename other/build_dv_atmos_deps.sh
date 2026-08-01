@@ -98,7 +98,9 @@ fetch() {
 # URL above cover. It grants no patent licence, separately from the copyright.
 if [ "$MPEGH" = 1 ]; then
     fetch mpeghdec "$MPEGHDEC_URL" "$MPEGHDEC_REV"
-    if [ ! -f "$PREFIX/share/pkgconfig/mpeghdec.pc" ]; then
+    MPEGH_STAMP="$PREFIX/.mpeghdec-build-stamp"
+    if [ ! -f "$PREFIX/share/pkgconfig/mpeghdec.pc" ] || \
+       [ "$(cat "$MPEGH_STAMP" 2>/dev/null)" != "$MPEGHDEC_REV" ]; then
         echo ">> building libmpeghdec"
         # MacPorts ships a cmake that cannot run on this machine, so be explicit.
         ( cd "$SRC/mpeghdec" && "$BREW/bin/cmake" -S . -B build \
@@ -106,6 +108,7 @@ if [ "$MPEGH" = 1 ]; then
             -DBUILD_SHARED_LIBS=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
           && "$BREW/bin/cmake" --build build -j"$JOBS" \
           && "$BREW/bin/cmake" --install build )
+        echo "$MPEGHDEC_REV" > "$MPEGH_STAMP"
     fi
     mkdir -p "$REPO_ROOT/deps/licenses"
     cp "$SRC/mpeghdec/LICENSE.txt" "$REPO_ROOT/deps/licenses/mpeghdec-LICENSE.txt"
@@ -203,13 +206,18 @@ DYLD_LIBRARY_PATH="$PREFIX/lib" "$PREFIX/check_dst_raw"
 
 # ---- libplacebo -------------------------------------------------------------
 fetch libplacebo "$PLACEBO_URL" "$PLACEBO_REV"
-if [ ! -f "$PREFIX/lib/pkgconfig/libplacebo.pc" ]; then
+# Stamped on the pinned revision like FFmpeg above: a .pc-existence check meant that
+# bumping PLACEBO_REV rebuilt nothing and the old library was silently kept.
+PLACEBO_STAMP="$PREFIX/.placebo-build-stamp"
+if [ ! -f "$PREFIX/lib/pkgconfig/libplacebo.pc" ] || \
+   [ "$(cat "$PLACEBO_STAMP" 2>/dev/null)" != "$PLACEBO_REV" ]; then
     echo ">> building libplacebo"
     ( cd "$SRC/libplacebo" && git submodule update --init --recursive \
-      && meson setup build --prefix="$PREFIX" --buildtype=release \
+      && meson setup build --prefix="$PREFIX" --buildtype=release --wipe \
             -Dtests=false -Ddemos=false -Dxxhash=disabled \
             -Dc_args="-I$BREW/include" -Dcpp_args="-I$BREW/include" \
       && meson compile -C build && meson install -C build )
+    echo "$PLACEBO_REV" > "$PLACEBO_STAMP"
 fi
 
 # ---- mpv --------------------------------------------------------------------

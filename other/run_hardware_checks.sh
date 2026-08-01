@@ -14,7 +14,7 @@
 #
 # Expects other/build_dv_atmos_deps.sh to have run first.
 
-set -uo pipefail
+set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PREFIX="$REPO_ROOT/deps/build/prefix"

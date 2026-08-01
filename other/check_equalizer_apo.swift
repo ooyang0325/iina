@@ -17,7 +17,45 @@ struct CheckEqualizerAPO {
     try invalidInputs_RejectRatherThanApplyPartialCorrection()
     dspGraphs_Parameters_GenerateExactFFmpegGraphs()
     convolution_SpecialPath_EscapesBothParserLevels()
+    dspParameters_HostileInput_RejectRatherThanInject()
     print("audiophile DSP unit checks passed")
+  }
+
+  /// A numeric DSP field is free text. `0,volume=volume=-20dB` in the stereo-correction
+  /// delay box used to close `stereotools` and install a second, working `volume` filter
+  /// (measured: output dropped by the injected amount). Anything that is not a plain finite
+  /// number must now be refused outright rather than interpolated.
+  private static func dspParameters_HostileInput_RejectRatherThanInject() {
+    let hostile = [
+      "0,volume=volume=-20dB",                     // inject a second filter
+      "0[a];amovie=filename=/etc/passwd[b];[a][b]amix",  // inject an arbitrary source
+      "1:precision=float",                         // inject another option
+      "1,5",                                       // comma decimal: a plausible typo
+      "",                                          // empty
+      "nan", "inf", "abc",
+    ]
+    for value in hostile {
+      precondition(AudiophileDSP.stereoCorrection(
+        mode: "lr>lr", width: "1", balance: "0", leftPolarity: "false",
+        rightPolarity: "false", phase: "0", delay: value) == nil,
+        "stereoCorrection accepted hostile delay \(value)")
+    }
+    // Enumerated fields come from popups but a saved filter file can be hand-edited.
+    precondition(AudiophileDSP.stereoCorrection(
+      mode: "lr>lr:phasel=true", width: "1", balance: "0", leftPolarity: "false",
+      rightPolarity: "false", phase: "0", delay: "0") == nil,
+      "stereoCorrection accepted a hostile mode")
+    // Valid input must still round-trip unchanged, including negatives and decimals.
+    precondition(AudiophileDSP.stereoCorrection(
+      mode: "lr>rl", width: "0.8", balance: "-0.1", leftPolarity: "true",
+      rightPolarity: "false", phase: "15", delay: "-0.25") ==
+      "stereotools=mode=lr>rl:slev=0.8:balance_out=-0.1:" +
+      "phasel=true:phaser=false:phase=15:delay=-0.25")
+    // Hex floats parse as Double in Swift but firequalizer/afir reject them, so they are
+    // normalised to decimal rather than passed through.
+    precondition(AudiophileDSP.bassManagement(
+      frequency: "0x1p3", order: "8th", mainGain: "0", subGain: "0")?
+      .contains("split=8:") == true)
   }
 
   private static func standardAutoEQ_ValidInput_GeneratesCompleteGraph() throws {

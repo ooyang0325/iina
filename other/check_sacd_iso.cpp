@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <cmath>
@@ -130,7 +131,16 @@ int main(int argc, char **argv)
 
     char temporary[] = "/tmp/iina-sacd-XXXXXX";
     const char *path = argc > 1 ? argv[1] : temporary;
-    int fd = argc > 1 ? open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600)
+    // argv[1] is where the synthetic image gets written, not an image to read. Refuse to
+    // clobber an existing file: passing a real disc image here used to silently destroy it.
+    if (argc > 1) {
+        struct stat existing;
+        if (stat(path, &existing) == 0) {
+            fprintf(stderr, "refusing to overwrite existing file: %s\n", path);
+            return 2;
+        }
+    }
+    int fd = argc > 1 ? open(path, O_CREAT | O_EXCL | O_WRONLY, 0600)
                       : mkstemp(temporary);
     assert(fd >= 0);
     assert(write(fd, image.data(), image.size()) == (ssize_t)image.size());
@@ -150,6 +160,33 @@ int main(int argc, char **argv)
     assert(track.start == 0.0 && track.duration == 1.0);
     assert(iina_sacd_get_track(sacd, 0, 1, &track));
     assert(track.start == 1.0 && track.duration == 2.0);
+
+    // The bug this file exists to catch is a timeline that moves backwards: overlapping
+    // timestamps were heard as bursts of noise. That assertion used to live only behind
+    // --inspect, which nothing automated ever passed, so it never ran in CI. Drive the
+    // read path here too. The synthetic image carries no decodable audio, so the frame
+    // count may legitimately be zero -- what must hold either way is that reads never
+    // report an error and pts never goes backwards.
+    assert(iina_sacd_select_area(sacd, 0));
+    uint8_t frame[64 * 1024];
+    double previous = -1;
+    int frames = 0;
+    for (;;) {
+        size_t size = 0;
+        int dst = 0;
+        double pts = 0;
+        int result = iina_sacd_read_frame(sacd, frame, sizeof(frame), &size,
+                                          &dst, &pts);
+        assert(result >= 0);
+        if (!result)
+            break;
+        assert(size <= sizeof(frame));
+        assert(pts > previous);
+        previous = pts;
+        frames++;
+    }
+    printf("timeline_frames=%d final_pts=%.6f\n", frames, previous);
+
     iina_sacd_close(sacd);
     if (argc == 1)
         unlink(path);

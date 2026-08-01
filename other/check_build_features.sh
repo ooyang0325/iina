@@ -100,6 +100,14 @@ for d in DSF LIBOPENMPT; do
 done
 [ "$BUILD" = gpl ] && ffc DVDVIDEO_DEMUXER
 
+section "Dolby Vision"
+# The headline DV features were built but asserted by nothing, so a dropped configure
+# switch would have shipped a build that silently cannot split or render an EL.
+ffc DOVI_SPLIT_BSF   "Dolby Vision BL/EL split"
+ffc DOVI_RPU_BSF     "Dolby Vision RPU"
+mpv LIBPLACEBO       "gpu-next rendering and DV tone mapping"
+mpv GL               "the render backend the shipped app actually uses"
+
 section "mpv"
 mpv COREAUDIO    "shared and exclusive Core Audio output"
 mpv AVFOUNDATION "Dolby Atmos output"

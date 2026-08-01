@@ -13,7 +13,10 @@
 #
 # The checks that do need hardware are not run here; see other/run_hardware_checks.sh.
 
-set -uo pipefail
+# -e matters here: the compiles below are not wrapped in run(), so without it a failed
+# build left the previous run's binary in $PREFIX and run() happily executed that instead,
+# reporting PASS for source that no longer compiles.
+set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PREFIX="$REPO_ROOT/deps/build/prefix"
