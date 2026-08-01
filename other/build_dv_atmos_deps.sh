@@ -44,11 +44,11 @@ MPEGH=0
 # Pinned revisions. These are the exact trees the shipped build was made from;
 # the playback projects move fast, so floating them will eventually break.
 FFMPEG_URL="https://github.com/ooyang0325/FFmpeg.git"
-FFMPEG_REV="0fca971eca"
+FFMPEG_REV="0e3ed1fcb7"
 PLACEBO_URL="https://github.com/ooyang0325/libplacebo.git"
-PLACEBO_REV="67032e7140fcd6978f553d12013c5c647b15f103"
+PLACEBO_REV="70f9a59a3094c5e6058e0caca4fe9fd5d395486e"
 MPV_URL="https://github.com/ooyang0325/mpv.git"
-MPV_REV="33b55b8a8"
+MPV_REV="e8023cb24"
 SACD_URL="https://github.com/Sound-Linux-More/sacd.git"
 SACD_REV="6cfc988eca603c770788b3fd489b192ae5d264e5"
 MPEGHDEC_URL="https://github.com/Fraunhofer-IIS/mpeghdec.git"
