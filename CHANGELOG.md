@@ -27,7 +27,9 @@ release is worth trusting on.
   waited synchronously for the main thread while IINA's UI timer waited for the
   same core to answer a property query. UI creation and unit teardown are now
   queued without blocking either thread.
-- Pinned mpv `0c8ed4aa8`; its 39 tests plus IINA's live option check cover AU
+- Oversized Audio Unit interfaces now keep their native content size inside a
+  scroll view while the host window stays within the screen's visible frame.
+- Pinned mpv `ef8686c2c`; its 39 tests plus IINA's live option check cover AU
   channel negotiation, latency reporting, bypass PCM identity, state reload,
   and continued playback.
 

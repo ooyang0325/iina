@@ -37,8 +37,8 @@ int main(int argc, char **argv)
                             AudioComponentFindNext(NULL, &thermion) != NULL;
         const char *component = has_thermion
             ? "617566785436345354686d4e"
-            : "61756678627061736170706c";
-        NSString *expected = has_thermion ? @"Thermion T-64" : @"AUBandpass";
+            : "617566786e6265716170706c";
+        NSString *expected = has_thermion ? @"Thermion T-64" : @"AUNBandEQ";
 
         [NSApplication sharedApplication];
         NSApp.activationPolicy = NSApplicationActivationPolicyAccessory;
@@ -78,9 +78,30 @@ int main(int argc, char **argv)
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 4 * NSEC_PER_SEC),
                        dispatch_get_main_queue(), ^{
             bool found = false;
-            for (NSWindow *window in NSApp.windows)
-                found |= [window.title containsString:expected];
+            bool scrollable = has_thermion;
+            for (NSWindow *window in NSApp.windows) {
+                if (![window.title containsString:expected])
+                    continue;
+                found = true;
+                NSScrollView *scroll = (NSScrollView *)window.contentView;
+                if (![scroll isKindOfClass:NSScrollView.class])
+                    continue;
+                CGFloat before = scroll.contentView.bounds.origin.y;
+                CGFloat maximum = MAX(0, scroll.documentView.frame.size.height -
+                                         scroll.contentView.bounds.size.height);
+                CGFloat target = before < maximum / 2 ? maximum : 0;
+                [scroll.contentView scrollToPoint:NSMakePoint(0, target)];
+                [scroll reflectScrolledClipView:scroll.contentView];
+                scrollable = has_thermion || (maximum > 0 &&
+                    fabs(scroll.contentView.bounds.origin.y - before) > 1 &&
+                    window.frame.size.height <=
+                        NSScreen.mainScreen.visibleFrame.size.height);
+            }
             result = !(atomic_load(&command_finished) && found);
+            result |= !scrollable;
+            if (result)
+                fprintf(stderr, "command=%d window=%d scroll=%d\n",
+                        atomic_load(&command_finished), found, scrollable);
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
                 mpv_terminate_destroy(mpv);
                 dispatch_async(dispatch_get_main_queue(), ^{ stop_app(); });
