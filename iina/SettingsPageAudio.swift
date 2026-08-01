@@ -26,6 +26,10 @@ class SettingsPageAudio: SettingsPage {
     .bindTo(.audioDsdOverPcm)
     .image(name: "waveform.badge.checkmark")
     .hasDescription()
+  private let pcmToDsdItem = SettingsItem.PopupButton()
+    .bindTo(.audioPcmToDsd, ofType: PcmToDsd.self)
+    .image(name: "waveform.badge.plus")
+    .hasDescription()
   private var driverObserver: Any?
 
   override var identifier: String {
@@ -117,6 +121,7 @@ class SettingsPageAudio: SettingsPage {
       SettingsList(title: .text_BitPerfectOutput) {
         exclusiveModeItem
         dsdOverPcmItem
+        pcmToDsdItem
         followSourceFormatItem
         SettingsItem.PopupButton()
           .image(name: "waveform.path")
@@ -129,6 +134,7 @@ class SettingsPageAudio: SettingsPage {
           .image(name: "arrow.left.arrow.right")
           .bindTo(.audioResampleEngine, ofType: ResampleEngine.self)
           .disableSubListOnTag(ResampleEngine.swr.rawValue)
+          .disableSubListOnTag(ResampleEngine.r8brain.rawValue)
           .hasDescription()
           .withDetailView {
             SettingsItem.PopupButton()
@@ -237,6 +243,8 @@ fileprivate enum ForcedSampleRate: Int, InitializingFromKey, CaseIterable {
   case hz96000 = 96000
   case hz176400 = 176400
   case hz192000 = 192000
+  case hz352800 = 352800
+  case hz384000 = 384000
 
   static var defaultValue = ForcedSampleRate.auto
 
@@ -255,6 +263,7 @@ fileprivate enum ForcedSampleRate: Int, InitializingFromKey, CaseIterable {
 fileprivate enum ResampleEngine: Int, InitializingFromKey, CaseIterable {
   case swr = 0
   case soxr
+  case r8brain
 
   static var defaultValue = ResampleEngine.swr
 
@@ -266,6 +275,27 @@ fileprivate enum ResampleEngine: Int, InitializingFromKey, CaseIterable {
     switch self {
     case .swr: "swr"
     case .soxr: "soxr"
+    case .r8brain: "r8brain"
+    }
+  }
+}
+
+fileprivate enum PcmToDsd: Int, InitializingFromKey, CaseIterable {
+  case off = 0
+  case dsd64 = 64
+  case dsd128 = 128
+
+  static var defaultValue = PcmToDsd.off
+
+  init?(key: Preference.Key) {
+    self.init(rawValue: Preference.integer(for: key))
+  }
+
+  var description: String {
+    switch self {
+    case .off: "off"
+    case .dsd64: "dsd64"
+    case .dsd128: "dsd128"
     }
   }
 }

@@ -40,7 +40,7 @@ architecture:
 |---|---|
 | Dolby Vision | Profiles 5, 7, and 8; per-frame L1/L2/L8 metadata; profile 7 FEL base/enhancement-layer composition |
 | Immersive audio | E-AC-3/TrueHD Atmos and DTS:X object-rendering paths, E-AC-3 AVFoundation passthrough, and native channel-based fallback |
-| Audiophile output | Core Audio exclusive access, physical sample-rate matching, hardware volume, USB DAC format recovery, and guarded format handoffs |
+| Audiophile output | Core Audio exclusive access, SoX or r8brain upsampling, PCM-to-DSD64/128, physical sample-rate matching, hardware volume, USB DAC format recovery, and guarded format handoffs |
 | DSD and SACD | Native DSF/DFF, raw DSD over DoP 1.1, DST-to-DSD, and SACD ISO areas, tracks, chapters, and seeking |
 | Audiophile DSP | Ordered headroom, manual or AutoEQ/REW parametric EQ, dynamic EQ, FIR correction, crossfeed, stereo correction, 2.1 bass management, speaker matrix/time alignment, and safety limiting |
 | Diagnostics and delivery | Live signal-path Inspector, headless and hardware regression checks, and signed arm64 ZIP artifacts from GitHub Actions |
@@ -54,6 +54,8 @@ import accepts Equalizer APO `ParametricEQ.txt` files with preamp, peak, and
 low/high-shelf entries, plus interpolated `GraphicEQ.txt` curves.
 Stereo 2.1 bass management emits FL, FR, and LFE channels and therefore requires
 an output device that exposes a compatible multichannel layout.
+
+The r8brain sample-rate converter was designed by Aleksey Vaneev of Voxengo.
 
 ## Downloading
 

@@ -201,6 +201,8 @@ int main(int argc, char **argv)
         {"audio-exclusive", "yes"},
         {"audio-exclusive", "no"},
         {"audio-samplerate", "96000"},
+        {"audio-resample-engine", "r8brain"},
+        {"audio-resample-engine", "swr"},
         {"audio-samplerate", "0"},
         {"audio-spdif", "ac3,dts"},
         {"audio-spdif", ""},

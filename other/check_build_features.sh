@@ -110,6 +110,7 @@ mpv GL               "the render backend the shipped app actually uses"
 
 section "mpv"
 mpv COREAUDIO    "shared and exclusive Core Audio output"
+mpv R8BRAIN      "Aleksey Vaneev's r8brain sample-rate converter"
 mpv AVFOUNDATION "Dolby Atmos output"
 mpv ORENDER      "object audio rendering"
 mpv LIBBLURAY    "Blu-ray"

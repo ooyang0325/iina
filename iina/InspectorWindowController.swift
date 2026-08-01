@@ -1352,15 +1352,20 @@ private extension InspectorWindowController {
   let ao = property(controller, MPVProperty.currentAo)
   let dop = audioOutFormat == "dop"
   let compressed = audioOutFormat?.contains("spdif") == true
+  let pcmToDsdRate = Preference.integer(for: .audioPcmToDsd)
+  let pcmToDsd = pcmToDsdRate != 0 && ao == "coreaudio_exclusive" &&
+    !dop && !compressed
   let passthrough = compressed || dop
   let avPlayerRoute = ao == "avfoundation" && compressed && audio?.codec == "eac3"
   let route: String? = avPlayerRoute ? "AVPlayer fMP4/HLS" :
     audioPipeline?.hasPrefix("liborender") == true ? "liborender → \(ao ?? "audio output")" :
+    pcmToDsd ? "PCM → DSD\(pcmToDsdRate) → DoP" :
     dop ? "DoP → \(ao ?? "audio output")" :
     compressed ? "\(ao ?? "audio output") compressed passthrough" :
     ao == "avfoundation" ? "AVSampleBufferAudioRenderer" : ao
   let transport: String? = audio == nil ? nil :
     avPlayerRoute ? "Compressed E-AC-3/JOC" :
+    pcmToDsd ? "DSD over PCM (DoP 1.1)" :
     dop ? "DSD over PCM (DoP 1.1)" :
     compressed ? "IEC 61937 compressed" : "Decoded PCM"
 
@@ -1420,6 +1425,7 @@ private extension InspectorWindowController {
   let processing = audioProcessing(controller, compressed: passthrough)
   let lossy = processing.filter { !$0.hasSuffix(losslessMarkerValue()) }
   setDiagnostic("g.output.signal", audio == nil ? nil :
+    pcmToDsd ? "Processed · PCM converted to DSD\(pcmToDsdRate)" :
     dop ? "Bit-perfect DoP · raw DSD reaches the device unchanged" :
     compressed ? "Bitstream passthrough · the device receives the encoded stream" :
     !lossy.isEmpty ? "Processed · sample values are altered before the device" :

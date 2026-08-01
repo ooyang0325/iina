@@ -11,6 +11,18 @@ release is worth trusting on.
 
 ---
 
+## Unreleased — Phase 5
+
+- Added selectable r8brain upsampling using Aleksey Vaneev's pinned, MIT-licensed
+  r8brain-free-src 7.2 implementation. It runs at mpv's final resampling boundary,
+  so audio is never sample-rate converted twice. The app adds 352.8 and 384 kHz
+  output choices and pins mpv `328741a92` plus r8brain `8fff6f3db2`.
+- Added PCM-to-DSD64 and PCM-to-DSD128 over the existing guarded DoP 1.1 output.
+  The converter uses a second-order modulator with 6 dB headroom, exact 176.4 or
+  352.8 kHz integer carriers, Core Audio hog mode, and unity hardware volume.
+
+---
+
 ## 1.9.1 — Review-driven hardening
 
 An adversarial review of the whole fork, followed by a surgical patch pass.

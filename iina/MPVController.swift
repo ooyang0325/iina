@@ -357,6 +357,18 @@ class MPVController: NSObject {
     return options.joined(separator: ",")
   }
 
+  static func audioResampleEngine() -> String {
+    Preference.integer(for: .audioResampleEngine) == 2 ? "r8brain" : "swr"
+  }
+
+  static func pcmToDsdMode() -> String {
+    switch Preference.integer(for: .audioPcmToDsd) {
+    case 64: "dsd64"
+    case 128: "dsd128"
+    default: "off"
+    }
+  }
+
   /// The value for `--audio-device`, resolving `auto` to a concrete device under exclusive mode.
   ///
   /// mpv's `auto` means "whatever is default when the output opens". That is fine until exclusive
@@ -521,6 +533,9 @@ class MPVController: NSObject {
     // 0 is mpv's "follow the source" value, so this binds straight through.
     setUserOption(PK.audioForcedSampleRate, type: .int, forName: MPVOption.Audio.audioSamplerate,
                   verboseIfDefault: true)
+    setUserOption(PK.audioPcmToDsd, type: .other,
+                  forName: MPVOption.Audio.coreaudioPcmToDsd,
+                  verboseIfDefault: true) { _ in Self.pcmToDsdMode() }
 
     // Register this after the exclusive-output observers: enabling DoP must reopen the Core Audio
     // output before the decoder starts sending its carrier.
@@ -540,6 +555,9 @@ class MPVController: NSObject {
       setUserOption(key, type: .other, forName: MPVOption.AudioResampler.audioSwresampleO,
                     applyNow: false) { _ in Self.audioResampleOptions() }
     }
+    setUserOption(PK.audioResampleEngine, type: .other,
+                  forName: MPVOption.AudioResampler.audioResampleEngine,
+                  verboseIfDefault: true) { _ in Self.audioResampleEngine() }
     setUserOption(PK.audioNormalizeDownmix, type: .bool,
                   forName: MPVOption.AudioResampler.audioNormalizeDownmix, verboseIfDefault: true)
 

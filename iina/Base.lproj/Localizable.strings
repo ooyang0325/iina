@@ -681,6 +681,11 @@
 "settings.audioExclusiveMode.desc" = "Take exclusive (hog) control of the output device so that no other app can play through it, and drive the device at the source's own format. Requires the Core Audio driver.";
 "settings.audioDsdOverPcm.label" = "DSD over PCM (DoP)";
 "settings.audioDsdOverPcm.desc" = "Send raw DSD to a DoP-capable USB DAC without converting it to PCM. This automatically selects Core Audio exclusive mode and requires an exact 24- or 32-bit integer carrier rate. Unsupported devices fall back to decoded PCM. Enable only if your DAC supports DoP.";
+"settings.audioPcmToDsd.label" = "PCM to DSD";
+"settings.audioPcmToDsd.desc" = "Upsample decoded PCM and convert it to DSD over DoP. DSD64 needs a 176.4 kHz carrier; DSD128 needs 352.8 kHz. This selects Core Audio exclusive mode, reserves 6 dB of modulator headroom, and locks DAC volume at unity.";
+"settings.audioPcmToDsd.items.0" = "Off";
+"settings.audioPcmToDsd.items.64" = "DSD64";
+"settings.audioPcmToDsd.items.128" = "DSD128";
 "settings.audioFollowSourceFormat.label" = "Match device format to source";
 "settings.audioFollowSourceFormat.desc" = "When a file is opened, set the output device to the file's own sample rate so nothing is resampled. If the device cannot reach that rate, the highest rate in a whole-number ratio is used instead, such as 96 kHz for 384 kHz audio; if there is no such rate, the highest the device offers. Bitstreamed formats are left alone. Works with either audio driver. Exclusive mode always does this.";
 "settings.audioForcedSampleRate.label" = "Output sample rate";
@@ -692,10 +697,13 @@
 "settings.audioForcedSampleRate.items.96000" = "96 kHz";
 "settings.audioForcedSampleRate.items.176400" = "176.4 kHz";
 "settings.audioForcedSampleRate.items.192000" = "192 kHz";
+"settings.audioForcedSampleRate.items.352800" = "352.8 kHz";
+"settings.audioForcedSampleRate.items.384000" = "384 kHz";
 "settings.audioResampleEngine.label" = "Resampling engine";
-"settings.audioResampleEngine.desc" = "Used whenever audio has to change sample rate. SoX is slower but has a steeper filter and lower distortion; it only runs if resampling actually happens, so it costs nothing on bit-perfect output.";
+"settings.audioResampleEngine.desc" = "Used whenever audio has to change sample rate. SoX offers adjustable precision; r8brain is a double-precision linear-phase converter optimized for high ratios. Neither runs on bit-perfect output.";
 "settings.audioResampleEngine.items.0" = "Default";
 "settings.audioResampleEngine.items.1" = "SoX";
+"settings.audioResampleEngine.items.2" = "r8brain";
 "settings.audioResampleSoxrPrecision.label" = "Precision";
 "settings.audioResampleSoxrPrecision.desc" = "Bits of resampling accuracy. 20 is SoX's own default, 28 suits 24-bit material, 33 is the maximum and is beyond what any DAC resolves.";
 "settings.audioResampleSoxrPrecision.items.20" = "20-bit";

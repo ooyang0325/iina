@@ -48,7 +48,9 @@ FFMPEG_REV="0e3ed1fcb7"
 PLACEBO_URL="https://github.com/ooyang0325/libplacebo.git"
 PLACEBO_REV="c4a5fa016dca4cc43fffb4e61accc4127817c76b"
 MPV_URL="https://github.com/ooyang0325/mpv.git"
-MPV_REV="450ec8523"
+MPV_REV="328741a92"
+R8BRAIN_URL="https://github.com/avaneev/r8brain-free-src.git"
+R8BRAIN_REV="8fff6f3db26f14a8f5e8fb871000613673db5753"
 SACD_URL="https://github.com/Sound-Linux-More/sacd.git"
 SACD_REV="6cfc988eca603c770788b3fd489b192ae5d264e5"
 MPEGHDEC_URL="https://github.com/Fraunhofer-IIS/mpeghdec.git"
@@ -221,6 +223,7 @@ if [ ! -f "$PREFIX/lib/pkgconfig/libplacebo.pc" ] || \
 fi
 
 # ---- mpv --------------------------------------------------------------------
+fetch r8brain "$R8BRAIN_URL" "$R8BRAIN_REV"
 fetch mpv "$MPV_URL" "$MPV_REV"
 echo ">> building libmpv"
 # mpv gates dvdnav behind its own -Dgpl, and rubberband needs the library the
@@ -230,7 +233,8 @@ if [ "$MPEGH" = 1 ]; then
 else
     MPV_GPL_OPTS=(-Drubberband=enabled -Ddvdnav=enabled -Dsacd=enabled)
 fi
-( cd "$SRC/mpv" && rm -rf build \
+( export CPLUS_INCLUDE_PATH="$SRC/r8brain${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}" \
+  && cd "$SRC/mpv" && rm -rf build \
   && meson setup build --prefix="$PREFIX" --buildtype=release \
         -Dlibmpv=true -Dcplayer=false -Dorender=enabled -Dtests=true \
         -Dlua=enabled -Dlibarchive=enabled -Dlibbluray=enabled \

@@ -197,9 +197,11 @@ struct Preference {
     static let audioFollowSourceFormat = Key("audioFollowSourceFormat")
     /// Send raw DSD as DoP through a compatible DAC. Requires Core Audio exclusive mode.
     static let audioDsdOverPcm = Key("audioDsdOverPcm")
+    /// Convert decoded PCM to DSD64/128 over DoP, or 0 to leave PCM unchanged.
+    static let audioPcmToDsd = Key("audioPcmToDsd")
     /// Resample everything to this rate in Hz, or 0 to follow the source.
     static let audioForcedSampleRate = Key("audioForcedSampleRate")
-    /// Resampling engine: 0 = libswresample's own, 1 = SoX.
+    /// Resampling engine: 0 = libswresample, 1 = SoX, 2 = r8brain.
     static let audioResampleEngine = Key("audioResampleEngine")
     /// SoX resampling precision in bits, 15...33.
     static let audioResampleSoxrPrecision = Key("audioResampleSoxrPrecision")
@@ -1133,6 +1135,7 @@ struct Preference {
     .audioExclusiveMode: false,
     .audioFollowSourceFormat: false,
     .audioDsdOverPcm: false,
+    .audioPcmToDsd: 0,
     .audioForcedSampleRate: 0,
     .audioResampleEngine: 0,
     .audioResampleSoxrPrecision: 28,
