@@ -428,7 +428,19 @@ class ViewLayer: CAOpenGLLayer {
 
           Logger.log("Created CGL pixel format with attributes: " +
                      "\(attArray.joined(separator: ", "))", subsystem: subsystem)
-          return (pix, glFormat.contains(glFormat10Bit) ? 16 : 8, err)
+          let requestedFloat =
+            player.mpv.getFlag(MPVOption.GPURendererOptions.cocoaCb10bitContext)
+          let gotFloat = glFormat.contains(glFormat10Bit)
+          if requestedFloat && !gotFloat {
+            // The float attributes were stripped by the fallback loop above. EDR is
+            // still requested on the layer afterwards, but an 8-bit fixed-point
+            // surface tagged PQ cannot represent the range and HDR gradients band.
+            // This is otherwise silent, so say it plainly.
+            Logger.log("CGL rejected the 64-bit float pixel format; falling back to "
+                       + "8-bit. HDR content will band on this surface.",
+                       level: .warning, subsystem: subsystem)
+          }
+          return (pix, gotFloat ? 16 : 8, err)
         }
       }
     }
