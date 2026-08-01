@@ -23,7 +23,11 @@ release is worth trusting on.
 - Current audio filters can now be reordered by dragging. The existing saved
   filter mechanism stores both the component identity and its state file, so no
   second preset or chain system was added.
-- Pinned mpv `f3873afb4`; its 39 tests plus IINA's live option check cover AU
+- Fixed opening an Audio Unit interface freezing IINA. The mpv core previously
+  waited synchronously for the main thread while IINA's UI timer waited for the
+  same core to answer a property query. UI creation and unit teardown are now
+  queued without blocking either thread.
+- Pinned mpv `0c8ed4aa8`; its 39 tests plus IINA's live option check cover AU
   channel negotiation, latency reporting, bypass PCM identity, state reload,
   and continued playback.
 

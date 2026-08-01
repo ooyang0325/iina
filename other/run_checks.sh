@@ -79,6 +79,7 @@ clang -fobjc-arc "$REPO_ROOT/other/check_audiounit_ui.m" \
     -Wl,-rpath,"$SRC/mpv/build" -Wl,-rpath,"$PREFIX/lib" \
     -o "$PREFIX/check_audiounit_ui"
 run "Audio Unit native UI" "$PREFIX/check_audiounit_ui"
+run "Audio Unit generic UI" "$PREFIX/check_audiounit_ui" apple
 
 printf '\n'
 if [ "$failures" -eq 0 ]; then
