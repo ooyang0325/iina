@@ -315,7 +315,8 @@ class MPVController: NSObject {
   static func audioSpdifCodecs(ac3: Bool = Preference.bool(for: PK.spdifAC3),
                                dts: Bool = Preference.bool(for: PK.spdifDTS),
                                dtsHD: Bool = Preference.bool(for: PK.spdifDTSHD),
-                               dsd: Bool = Preference.bool(for: PK.audioDsdOverPcm)) -> String {
+                               dsd: Bool = Preference.bool(for: PK.audioDsdOverPcm) ||
+                                 Preference.integer(for: PK.audioPcmToDsd) != 0) -> String {
     if Preference.bool(for: PK.audioDriverEnableAVFoundation) {
       return "eac3"
     }
@@ -1923,20 +1924,10 @@ class MPVController: NSObject {
       }
     }
 
-    // Changing the audio driver changes four options at once, and mpv's reload_audio_output()
-    // starts with `if (!mpctx->ao) return;`. The first of those options tears the output down, so
-    // every reload after it, including the one for the driver itself, does nothing, and mpv is
-    // left with no audio output at all: silent, position frozen, and unrecoverable except by
-    // seeking, which is what finally rebuilds the chain. Rebuild it here instead, once all four
-    // options are in place.
-    // Changing the audio driver changes four options at once, and mpv's reload_audio_output()
-    // starts with `if (!mpctx->ao) return;`. The first of those options tears the output down, so
-    // every reload after it, including the one for the driver itself, does nothing, and mpv is
-    // left with no audio output at all: silent, with the position frozen. A zero length exact
-    // seek is what rebuilds the chain, which is why seeking by hand was the only way out; do it
-    // here so the switch simply works. The position does not move.
+    // Changing the driver updates several AO options. The first tears down the output, so later
+    // reloads find no AO and return. A zero-length exact seek rebuilds after every option is set.
     if keyPath == PK.audioDriverEnableAVFoundation.rawValue {
-      log("Audio driver changed, rebuilding the audio chain")
+      log("Audio route changed, rebuilding the audio chain")
       DispatchQueue.main.async { [self] in
         guard player.info.state.active else { return }
         command(.seek, args: ["0", "relative+exact"], checkError: false)

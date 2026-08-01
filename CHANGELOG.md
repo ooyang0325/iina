@@ -20,6 +20,11 @@ release is worth trusting on.
 - Added PCM-to-DSD64 and PCM-to-DSD128 over the existing guarded DoP 1.1 output.
   The converter uses a second-order modulator with 6 dB headroom, exact 176.4 or
   352.8 kHz integer carriers, Core Audio hog mode, and unity hardware volume.
+- Fixed DSD64/DSD128/PCM switching latching the DAC's hardware mute. Encoded
+  carriers are already stopped before their format is restored, so teardown no
+  longer mutes DoP and accidentally teaches the replacement output that mute-on
+  was the device's original state. DoP stays enabled and locked in settings
+  while PCM-to-DSD is active.
 
 ---
 

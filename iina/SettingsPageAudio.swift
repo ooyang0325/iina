@@ -78,6 +78,8 @@ class SettingsPageAudio: SettingsPage {
     // layer rather than through the output driver.
     exclusiveModeItem.nsSwitch?.isEnabled =
       !Preference.bool(for: PK.audioDriverEnableAVFoundation)
+    dsdOverPcmItem.nsSwitch?.isEnabled =
+      Preference.integer(for: PK.audioPcmToDsd) == 0
   }
 
   private func sectionHardware() -> SettingsSection {

@@ -168,6 +168,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
       }
     case Preference.Key.audioDsdOverPcm.rawValue:
+      if !Preference.bool(for: .audioDsdOverPcm),
+         Preference.integer(for: .audioPcmToDsd) != 0 {
+        Logger.log("PCM-to-DSD requires DoP, keeping DSD over PCM enabled")
+        Preference.set(true, for: .audioDsdOverPcm)
+        return
+      }
       guard change[.newKey] as? Bool == true else { return }
       Logger.log("DSD over PCM enabled, selecting Core Audio exclusive output")
       if Preference.bool(for: .audioDriverEnableAVFoundation) {
@@ -179,6 +185,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     case Preference.Key.audioPcmToDsd.rawValue:
       guard Preference.integer(for: .audioPcmToDsd) != 0 else { return }
       Logger.log("PCM-to-DSD enabled, selecting Core Audio exclusive output")
+      if !Preference.bool(for: .audioDsdOverPcm) {
+        Preference.set(true, for: .audioDsdOverPcm)
+      }
       if Preference.bool(for: .audioDriverEnableAVFoundation) {
         Preference.set(false, for: .audioDriverEnableAVFoundation)
       }

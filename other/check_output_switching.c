@@ -88,6 +88,28 @@ static AudioStreamBasicDescription physical_format(AudioStreamID stream)
     return f;
 }
 
+static bool device_muted(AudioDeviceID device, bool *muted)
+{
+    uint32_t value = 0;
+    if (!get_prop(device, kAudioDevicePropertyMute,
+                  kAudioDevicePropertyScopeOutput, &value, sizeof(value)))
+        return false;
+    *muted = value;
+    return true;
+}
+
+static void check_not_muted(AudioDeviceID device, const char *stage,
+                            int *failures)
+{
+    bool muted = false;
+    if (device_muted(device, &muted) && muted) {
+        fprintf(stderr, "FAIL  device stayed muted after %s\n", stage);
+        (*failures)++;
+    } else {
+        printf("PASS  device is unmuted after %s\n", stage);
+    }
+}
+
 #define NON_MIXABLE 0x40
 
 static void describe(const char *label, const AudioStreamBasicDescription *f)
@@ -239,6 +261,7 @@ int main(int argc, char **argv)
         {"ao", "coreaudio"},
         {"audio-device", audio_device},
         {"audio-exclusive", "yes"},
+        {"audio-resample-engine", "r8brain"},
         {"coreaudio-change-physical-format", "yes"},
         {"volume", "100"},
     };
@@ -270,6 +293,24 @@ int main(int argc, char **argv)
         printf("PASS  exclusive PCM is mixable and exclusively owned\n");
     }
     playback_advances(mpv, "exclusive start", &failures);
+
+    printf("\nswitching PCM to DSD64\n");
+    set_property_fn(mpv, "coreaudio-pcm-to-dsd", "dsd64");
+    pump(mpv, 7);
+    check_not_muted(device, "PCM to DSD64", &failures);
+    playback_advances(mpv, "PCM to DSD64", &failures);
+
+    printf("\nswitching PCM to DSD128\n");
+    set_property_fn(mpv, "coreaudio-pcm-to-dsd", "dsd128");
+    pump(mpv, 7);
+    check_not_muted(device, "DSD64 to DSD128", &failures);
+    playback_advances(mpv, "DSD64 to DSD128", &failures);
+
+    printf("\nswitching DSD128 to PCM\n");
+    set_property_fn(mpv, "coreaudio-pcm-to-dsd", "off");
+    pump(mpv, 7);
+    check_not_muted(device, "DSD128 to PCM", &failures);
+    playback_advances(mpv, "DSD128 to PCM", &failures);
 
     char *source_channels = get_property_fn(mpv, "audio-params/channel-count");
     char *source_codec = get_property_fn(mpv, "audio-codec-name");
