@@ -607,8 +607,22 @@ class MPVController: NSObject {
 
     setUserOption(PK.subTextColorString, type: .color, forName: MPVOption.Subtitles.subColor,
                   verboseIfDefault: true)
-    setUserOption(PK.subBgColorString, type: .color, forName: MPVOption.Subtitles.subBackColor,
-                  verboseIfDefault: true)
+    let subtitleBackgroundEnabled = {
+      guard let value = Preference.string(for: PK.subBgColorString),
+            let color = NSColor(mpvColorString: value) else { return false }
+      return color.alphaComponent > 0
+    }
+    let subtitleBackColor: OptionObserverInfo.Transformer = { _ in
+      Preference.string(for: subtitleBackgroundEnabled() ? PK.subBgColorString : PK.subShadowColorString)
+    }
+    setUserOption(PK.subBgColorString, type: .other, forName: MPVOption.Subtitles.subBackColor,
+                  verboseIfDefault: true, transformer: subtitleBackColor)
+    setUserOption(PK.subShadowColorString, type: .other, forName: MPVOption.Subtitles.subBackColor,
+                  applyNow: false, transformer: subtitleBackColor)
+    setUserOption(PK.subBgColorString, type: .other, forName: "sub-border-style",
+                  verboseIfDefault: true) { _ in
+      subtitleBackgroundEnabled() ? "background-box" : "outline-and-shadow"
+    }
 
     setUserOption(PK.subBold, type: .bool, forName: MPVOption.Subtitles.subBold,
                   verboseIfDefault: true)
@@ -626,8 +640,6 @@ class MPVController: NSObject {
                   verboseIfDefault: true)
 
     setUserOption(PK.subShadowSize, type: .float, forName: MPVOption.Subtitles.subShadowOffset,
-                  verboseIfDefault: true)
-    setUserOption(PK.subShadowColorString, type: .color, forName: MPVOption.Subtitles.subShadowColor,
                   verboseIfDefault: true)
 
     setUserOption(PK.subAlignX, type: .other, forName: MPVOption.Subtitles.subAlignX,

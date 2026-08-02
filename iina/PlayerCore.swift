@@ -2067,6 +2067,8 @@ class PlayerCore: NSObject {
 
   func setSubTextBgColor(_ colorString: String) {
     mpv.setString("options/" + MPVOption.Subtitles.subBackColor, colorString)
+    let hasBackground = (NSColor(mpvColorString: colorString)?.alphaComponent ?? 0) > 0
+    mpv.setString("options/sub-border-style", hasBackground ? "background-box" : "outline-and-shadow")
   }
 
   func setSubEncoding(_ encoding: String) {
