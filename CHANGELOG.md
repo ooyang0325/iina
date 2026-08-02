@@ -11,7 +11,7 @@ release is worth trusting on.
 
 ---
 
-## Unreleased — Phase 6
+## 1.9.2 — Audio Unit hosting and Dolby Vision Level 5
 
 - Added native macOS Audio Unit effect hosting in mpv. Installed `aufx` and
   `aumf` components appear in IINA's existing Audio Filters browser and run in
