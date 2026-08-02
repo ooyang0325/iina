@@ -233,8 +233,6 @@ struct MPVOption {
     static let videoRotate = "video-rotate"
     /** --video-crop=<[W[xH]][+x+y]> */
     static let videoCrop = "video-crop"
-    /** --dovi-level5-mode=<mask|crop> */
-    static let doviLevel5Mode = "dovi-level5-mode"
     /** --video-zoom=<value> */
     static let videoZoom = "video-zoom"
     /** --video-scale-x=<value> */

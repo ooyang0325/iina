@@ -495,7 +495,7 @@ class MPVController: NSObject {
       return String(describing: Preference.enum(for: key) as Preference.HardwareDecoderOption)
     }
     setUserOption(PK.dolbyVisionLevel5Mode, type: .other,
-                  forName: MPVOption.Video.doviLevel5Mode,
+                  forName: "dovi-level5-mode",
                   verboseIfDefault: true) { key in
       let mode: Preference.DolbyVisionLevel5Mode = Preference.enum(for: key)
       return mode.mpvValue
