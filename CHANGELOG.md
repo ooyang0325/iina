@@ -29,7 +29,12 @@ release is worth trusting on.
   queued without blocking either thread.
 - Oversized Audio Unit interfaces now keep their native content size inside a
   scroll view while the host window stays within the screen's visible frame.
-- Pinned mpv `ef8686c2c`; its 39 tests plus IINA's live option check cover AU
+- Applied per-frame Dolby Vision Level 5 active-area offsets. The supplied
+  2908-frame Profile 7 CM v4.0 test was already composing FEL correctly (34
+  paired frames at the sampled timestamp, zero misses); its visible instruction
+  text came from ignoring the 320-row Level 5 letterbox exclusion. The libmpv
+  gpu-next mapper now also forwards source crop rectangles to libplacebo.
+- Pinned mpv `ed3b4c617`; its 39 tests plus IINA's live option check cover AU
   channel negotiation, latency reporting, bypass PCM identity, state reload,
   and continued playback.
 

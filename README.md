@@ -38,7 +38,7 @@ architecture:
 
 | Area | Implemented capability |
 |---|---|
-| Dolby Vision | Profiles 5, 7, and 8; per-frame L1/L2/L8 metadata; profile 7 FEL base/enhancement-layer composition |
+| Dolby Vision | Profiles 5, 7, and 8; per-frame L1/L2/L5/L8 metadata; profile 7 FEL base/enhancement-layer composition |
 | Immersive audio | E-AC-3/TrueHD Atmos and DTS:X object-rendering paths, E-AC-3 AVFoundation passthrough, and native channel-based fallback |
 | Audiophile output | Core Audio exclusive access, SoX or r8brain upsampling, PCM-to-DSD64/128, physical sample-rate matching, hardware volume, USB DAC format recovery, and guarded format handoffs |
 | DSD and SACD | Native DSF/DFF, raw DSD over DoP 1.1, DST-to-DSD, and SACD ISO areas, tracks, chapters, and seeking |
