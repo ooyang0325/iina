@@ -42,6 +42,20 @@ static bool property_positive(mpv_handle *mpv, const char *name)
     return positive;
 }
 
+static bool wait_property(mpv_handle *mpv, const char *name,
+                          const char *expected)
+{
+    for (int n = 0; n < 100; n++) {
+        char *value = mpv_get_property_string(mpv, name);
+        bool matches = value && strcmp(value, expected) == 0;
+        mpv_free(value);
+        if (matches)
+            return true;
+        mpv_wait_event(mpv, 0.05);
+    }
+    return property_is(mpv, name, expected);
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 2) {
@@ -110,7 +124,29 @@ int main(int argc, char **argv)
     ok &= property_is(mpv, "video-frame-info/dolby-vision-el-misses", "0");
     ok &= property_is(mpv, "video-frame-info/dolby-vision-el-late", "0");
     ok &= property_is(mpv, "video-params/dw", "3840");
-    ok &= property_is(mpv, "video-params/dh", "1520");
+    ok &= property_is(mpv, "dovi-level5-mode", "mask");
+    ok &= property_is(mpv, "video-params/dh", "2160");
+
+    ok &= mpv_set_property_string(mpv, "dovi-level5-mode", "crop") >= 0;
+    ok &= wait_property(mpv, "video-params/dh", "1520");
+    ok &= mpv_set_property_string(mpv, "dovi-level5-mode", "mask") >= 0;
+    ok &= wait_property(mpv, "video-params/dh", "2160");
+
+    ok &= mpv_set_property_string(mpv, "pause", "yes") >= 0;
+    const char *seek_start[] = {"seek", "0", "absolute+exact", NULL};
+    ok &= mpv_command(mpv, seek_start) >= 0;
+    for (int n = 0; n < 100; n++) {
+        char *value = mpv_get_property_string(mpv, "time-pos");
+        bool at_start = value && atof(value) < 1;
+        mpv_free(value);
+        if (at_start)
+            break;
+        mpv_wait_event(mpv, 0.05);
+    }
+    ok &= mpv_set_property_string(mpv, "dovi-level5-mode", "crop") >= 0;
+    ok &= wait_property(mpv, "video-params/dh", "2160");
+    ok &= mpv_set_property_string(mpv, "dovi-level5-mode", "mask") >= 0;
+    ok &= wait_property(mpv, "video-params/dh", "2160");
 
     mpv_terminate_destroy(mpv);
     printf("FEL Level 5 playback check %s\n", ok ? "PASSED" : "FAILED");

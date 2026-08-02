@@ -494,6 +494,12 @@ class MPVController: NSObject {
                   verboseIfDefault: true) { key in
       return String(describing: Preference.enum(for: key) as Preference.HardwareDecoderOption)
     }
+    setUserOption(PK.dolbyVisionLevel5Mode, type: .other,
+                  forName: MPVOption.Video.doviLevel5Mode,
+                  verboseIfDefault: true) { key in
+      let mode: Preference.DolbyVisionLevel5Mode = Preference.enum(for: key)
+      return mode.mpvValue
+    }
 
     setUserOption(PK.audioLanguage, type: .string, forName: MPVOption.TrackSelection.alang,
                   level: .verbose)
@@ -814,7 +820,7 @@ class MPVController: NSObject {
       fatalError("mpvInitRendering() should be called after mpv handle being initialized!")
     }
     let apiType = UnsafeMutableRawPointer(mutating: (MPV_RENDER_API_TYPE_OPENGL as NSString).utf8String)
-    // Dolby Vision (profile 5/7/8, per-frame L1 and the L2/L8 creative trims)
+    // Dolby Vision (profile 5/7/8, per-frame L1/L2/L5/L8 metadata)
     // is only rendered by the libplacebo-based backend. The legacy 'gpu'
     // backend strips the DV metadata back out before it ever reaches the
     // renderer, so the base layer is displayed as plain HDR10.

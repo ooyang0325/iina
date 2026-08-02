@@ -34,7 +34,10 @@ release is worth trusting on.
   paired frames at the sampled timestamp, zero misses); its visible instruction
   text came from ignoring the 320-row Level 5 letterbox exclusion. The libmpv
   gpu-next mapper now also forwards source crop rectangles to libplacebo.
-- Pinned mpv `ed3b4c617`; its 39 tests plus IINA's live option check cover AU
+- Added Mask and Crop presentation modes for Level 5. Mask is the default and
+  preserves the coded canvas/window size while clearing inactive regions to
+  black; Crop retains the prior active-area resize behavior.
+- Pinned mpv `37187e45c`; its 39 tests plus IINA's live option check cover AU
   channel negotiation, latency reporting, bypass PCM identity, state reload,
   and continued playback.
 

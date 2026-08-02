@@ -51,6 +51,10 @@ dragging. Double-click an active Audio Unit to open its native interface. DSP
 operates on decoded PCM, so disable the rack when using encoded passthrough or
 DoP.
 
+Dolby Vision Level 5 active areas default to a black mask so changing
+letterbox offsets never resize the player window. **Settings → Video → Color &
+HDR** can switch to Crop mode when active-area sizing is preferred.
+
 FIR convolution accepts WAV, FLAC, AIFF, or CAF impulse responses. AutoEQ/REW
 import accepts Equalizer APO `ParametricEQ.txt` files with preamp, peak, and
 low/high-shelf entries, plus interpolated `GraphicEQ.txt` curves.

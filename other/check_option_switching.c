@@ -283,6 +283,8 @@ int main(int argc, char **argv)
         {"audio-resample-engine", "r8brain"},
         {"audio-resample-engine", "swr"},
         {"audio-samplerate", "0"},
+        {"dovi-level5-mode", "crop"},
+        {"dovi-level5-mode", "mask"},
         {"coreaudio-pcm-to-dsd", "dsd64"},
         {"coreaudio-pcm-to-dsd", "dsd128"},
         {"coreaudio-pcm-to-dsd", "off"},

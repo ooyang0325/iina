@@ -653,6 +653,10 @@
 // Settings - Video
 "settings.enableHdrSupport.desc" = "Enable HDR mode by default when playing HDR videos.";
 "settings.enableHdrSupport.label" = "Enable HDR mode";
+"settings.dolbyVisionLevel5Mode.label" = "Dolby Vision active area";
+"settings.dolbyVisionLevel5Mode.desc" = "Mask keeps the player window stable when Level 5 letterbox offsets change. Crop resizes the video to the active area.";
+"doviLevel5.mask" = "Mask inactive area";
+"doviLevel5.crop" = "Crop inactive area";
 "settings.enableLiveText.desc" = "Show a Live Text overlay on paused video frames for text recognition. Requires macOS 13 or later.";
 "settings.enableLiveText.label" = "Live Text";
 "settings.enableToneMapping.label" = "Enable tone mapping";
