@@ -795,10 +795,7 @@ struct Preference {
     }
 
     var description: String {
-      switch self {
-      case .mask: NSLocalizedString("doviLevel5.mask", comment: "Mask inactive area")
-      case .crop: NSLocalizedString("doviLevel5.crop", comment: "Crop inactive area")
-      }
+      mpvValue
     }
 
     var mpvValue: String {
