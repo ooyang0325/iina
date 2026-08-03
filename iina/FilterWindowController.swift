@@ -10,6 +10,9 @@ import Cocoa
 
 class FilterWindowController: NSWindowController, NSWindowDelegate {
 
+  private static let filterRowDragType = NSPasteboard.PasteboardType(
+    "com.colliderli.iina.filter-row")
+
   override var windowNibName: NSNib.Name {
     return NSNib.Name("FilterWindowController")
   }
@@ -80,6 +83,8 @@ class FilterWindowController: NSWindowController, NSWindowDelegate {
 
     // Double-click saved filter to edit
     savedFiltersTableView.doubleAction = #selector(self.editSavedFilterAction(_:))
+    currentFiltersTableView.doubleAction = #selector(self.showAudioUnitUI(_:))
+    currentFiltersTableView.registerForDraggedTypes([Self.filterRowDragType])
 
     updateButtonStatus()
 
@@ -205,6 +210,14 @@ class FilterWindowController: NSWindowController, NSWindowDelegate {
     saveFilter(filters[row])
   }
 
+  @objc private func showAudioUnitUI(_ sender: Any) {
+    let row = currentFiltersTableView.clickedRow
+    guard row >= 0, let filter = filters[at: row],
+          filter.name == "audiounit", let label = filter.label else { return }
+    PlayerCore.lastActive.mpv.asyncCommand(.afCommand,
+      args: [label, "show-ui", ""], checkError: false, replyUserdata: 0)
+  }
+
   /// User activates or deactivates previously saved audio or video filter
   /// - Parameter sender: A checkbox in lower portion of filter window
   @IBAction func toggleSavedFilterAction(_ sender: NSButton) {
@@ -325,6 +338,36 @@ extension FilterWindowController: NSTableViewDelegate, NSTableViewDataSource {
     updateButtonStatus()
   }
 
+  func tableView(_ tableView: NSTableView,
+                 pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
+    guard tableView == currentFiltersTableView else { return nil }
+    let item = NSPasteboardItem()
+    item.setString(String(row), forType: Self.filterRowDragType)
+    return item
+  }
+
+  func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo,
+                 proposedRow row: Int,
+                 proposedDropOperation dropOperation: NSTableView.DropOperation)
+    -> NSDragOperation {
+    guard tableView == currentFiltersTableView,
+          info.draggingSource as? NSTableView == tableView,
+          dropOperation == .above else { return [] }
+    return .move
+  }
+
+  func tableView(_ tableView: NSTableView, acceptDrop info: NSDraggingInfo,
+                 row: Int, dropOperation: NSTableView.DropOperation) -> Bool {
+    guard tableView == currentFiltersTableView,
+          let value = info.draggingPasteboard.string(forType: Self.filterRowDragType),
+          let source = Int(value), source != row, source != row - 1 else { return false }
+    let filter = filters.remove(at: source)
+    filters.insert(filter, at: source < row ? row - 1 : row)
+    setFilters()
+    reloadTable()
+    return true
+  }
+
   func windowDidBecomeKey(_ notification: Notification) {
     updateButtonStatus()
   }
@@ -348,6 +391,19 @@ extension FilterWindowController {
 
   @IBAction func addSavedFilterAction(_ sender: Any) {
     if let currentFilter = currentFilter {
+      if currentFilter.name == "audiounit",
+         let label = currentFilter.label,
+         let state = currentFilter.params?["state"] {
+        var saved = false
+        PlayerCore.lastActive.mpv.command(.afCommand,
+          args: [label, "save-state", state], checkError: false) {
+            saved = $0 >= 0
+          }
+        guard saved else {
+          Utility.showAlert("filter.incorrect", sheetWindow: saveFilterSheet)
+          return
+        }
+      }
       let filter = SavedFilter(name: saveFilterNameTextField.stringValue,
                                filterString: currentFilter.stringFormat,
                                shortcutKey: keyRecordView.currentKey,

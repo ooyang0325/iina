@@ -532,7 +532,7 @@ struct SettingsItem {
     private var valueTypes: [(Int, String)] = []
     private var customBinding = false
     private var customBindingBlock: ((NSPopUpButton) -> Void)?
-    private var tagForDisabled: Int?
+    private var tagsForDisabled: Set<Int> = []
     private var availableTags: Set<Int>? = nil
 
     override func getValueViews() -> [NSView] {
@@ -589,7 +589,7 @@ struct SettingsItem {
     }
 
     func disableSubListOnTag(_ tag: Int) -> Self {
-      self.tagForDisabled = tag
+      tagsForDisabled.insert(tag)
       return self
     }
 
@@ -613,9 +613,9 @@ struct SettingsItem {
     }
 
     @objc func popupChanged(_ sender: NSPopUpButton) {
-      guard let detailView = renderedDetailView, let tag = tagForDisabled else { return }
+      guard let detailView = renderedDetailView, !tagsForDisabled.isEmpty else { return }
 
-      let enabled = sender.selectedTag() != tag
+      let enabled = !tagsForDisabled.contains(sender.selectedTag())
       setSubControls(detailView, enabled: enabled)
     }
 

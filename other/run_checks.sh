@@ -71,6 +71,28 @@ cc "$REPO_ROOT/other/check_option_switching.c" -I"$REPO_ROOT/deps/include" \
 run "audio option switching" "$PREFIX/check_option_switching" \
     "$SRC/mpv/build/libmpv.2.dylib"
 
+# Native AU views share the live effect instance. Teardown stays on the main
+# thread so JUCE and other third-party editors cannot outlive their Audio Unit.
+clang -fobjc-arc "$REPO_ROOT/other/check_audiounit_ui.m" \
+    -I"$REPO_ROOT/deps/include" "$SRC/mpv/build/libmpv.2.dylib" \
+    -framework AudioToolbox -framework Cocoa \
+    -Wl,-rpath,"$SRC/mpv/build" -Wl,-rpath,"$PREFIX/lib" \
+    -o "$PREFIX/check_audiounit_ui"
+run "Audio Unit native UI" "$PREFIX/check_audiounit_ui"
+run "Audio Unit generic UI" "$PREFIX/check_audiounit_ui" apple
+
+# The community Profile 7 test is not redistributable, so this check is opt-in.
+# It proves FEL pairing remains active while Level 5 excludes the 320-row
+# letterbox regions at its 01:44 test segment.
+if [ -n "${FEL_TEST_FILE:-}" ]; then
+    cc "$REPO_ROOT/other/check_fel_playback.c" \
+       -I"$REPO_ROOT/deps/include" "$SRC/mpv/build/libmpv.2.dylib" \
+       -Wl,-rpath,"$SRC/mpv/build" -Wl,-rpath,"$PREFIX/lib" \
+       -o "$PREFIX/check_fel_playback"
+    run "Dolby Vision FEL and Level 5" "$PREFIX/check_fel_playback" \
+        "$FEL_TEST_FILE"
+fi
+
 printf '\n'
 if [ "$failures" -eq 0 ]; then
     echo "all checks passed"

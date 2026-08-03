@@ -119,7 +119,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   // MARK: - Logs
   private let observedPrefKeys: [Preference.Key] = [
     .logLevel, .thumbnailWidth, .audioDriverEnableAVFoundation, .audioExclusiveMode,
-    .audioDsdOverPcm,
+    .audioDsdOverPcm, .audioPcmToDsd,
   ]
 
   override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
@@ -140,6 +140,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         Logger.log("Audio driver set to AVFoundation, turning off DSD over PCM")
         Preference.set(false, for: .audioDsdOverPcm)
       }
+      if Preference.integer(for: .audioPcmToDsd) != 0 {
+        Logger.log("Audio driver set to AVFoundation, turning off PCM-to-DSD")
+        Preference.set(0, for: .audioPcmToDsd)
+      }
       if Preference.bool(for: .audioExclusiveMode) {
         Logger.log("Audio driver set to AVFoundation, turning off audio exclusive mode")
         Preference.set(false, for: .audioExclusiveMode)
@@ -153,13 +157,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
           Logger.log("Audio exclusive mode enabled, switching the audio driver to Core Audio")
           Preference.set(false, for: .audioDriverEnableAVFoundation)
         }
-      } else if Preference.bool(for: .audioDsdOverPcm) {
-        Logger.log("Audio exclusive mode disabled, turning off DSD over PCM")
-        Preference.set(false, for: .audioDsdOverPcm)
+      } else {
+        if Preference.bool(for: .audioDsdOverPcm) {
+          Logger.log("Audio exclusive mode disabled, turning off DSD over PCM")
+          Preference.set(false, for: .audioDsdOverPcm)
+        }
+        if Preference.integer(for: .audioPcmToDsd) != 0 {
+          Logger.log("Audio exclusive mode disabled, turning off PCM-to-DSD")
+          Preference.set(0, for: .audioPcmToDsd)
+        }
       }
     case Preference.Key.audioDsdOverPcm.rawValue:
+      if !Preference.bool(for: .audioDsdOverPcm),
+         Preference.integer(for: .audioPcmToDsd) != 0 {
+        Logger.log("PCM-to-DSD requires DoP, keeping DSD over PCM enabled")
+        Preference.set(true, for: .audioDsdOverPcm)
+        return
+      }
       guard change[.newKey] as? Bool == true else { return }
       Logger.log("DSD over PCM enabled, selecting Core Audio exclusive output")
+      if Preference.bool(for: .audioDriverEnableAVFoundation) {
+        Preference.set(false, for: .audioDriverEnableAVFoundation)
+      }
+      if !Preference.bool(for: .audioExclusiveMode) {
+        Preference.set(true, for: .audioExclusiveMode)
+      }
+    case Preference.Key.audioPcmToDsd.rawValue:
+      guard Preference.integer(for: .audioPcmToDsd) != 0 else { return }
+      Logger.log("PCM-to-DSD enabled, selecting Core Audio exclusive output")
+      if !Preference.bool(for: .audioDsdOverPcm) {
+        Preference.set(true, for: .audioDsdOverPcm)
+      }
       if Preference.bool(for: .audioDriverEnableAVFoundation) {
         Preference.set(false, for: .audioDriverEnableAVFoundation)
       }
@@ -251,7 +279,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       UserDefaults.standard.addObserver(self, forKeyPath: key.rawValue, options: .new, context: nil)
     }
     // The observers above only fire on change, so repair an invalid saved combination at launch.
-    if Preference.bool(for: .audioDsdOverPcm) {
+    if Preference.bool(for: .audioDsdOverPcm) ||
+       Preference.integer(for: .audioPcmToDsd) != 0 {
       Preference.set(false, for: .audioDriverEnableAVFoundation)
       Preference.set(true, for: .audioExclusiveMode)
     } else if Preference.bool(for: .audioDriverEnableAVFoundation),

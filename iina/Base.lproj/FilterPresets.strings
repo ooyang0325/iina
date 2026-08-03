@@ -119,3 +119,6 @@
 "dsp_limiter.ceiling" = "Linear ceiling (0.891251 = -1 dBFS)";
 "dsp_limiter.attack" = "Attack (ms)";
 "dsp_limiter.release" = "Release (ms)";
+
+"dsp_audio_unit" = "Audio Unit Effect";
+"dsp_audio_unit.component" = "Installed effect";

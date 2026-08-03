@@ -315,7 +315,8 @@ class MPVController: NSObject {
   static func audioSpdifCodecs(ac3: Bool = Preference.bool(for: PK.spdifAC3),
                                dts: Bool = Preference.bool(for: PK.spdifDTS),
                                dtsHD: Bool = Preference.bool(for: PK.spdifDTSHD),
-                               dsd: Bool = Preference.bool(for: PK.audioDsdOverPcm)) -> String {
+                               dsd: Bool = Preference.bool(for: PK.audioDsdOverPcm) ||
+                                 Preference.integer(for: PK.audioPcmToDsd) != 0) -> String {
     if Preference.bool(for: PK.audioDriverEnableAVFoundation) {
       return "eac3"
     }
@@ -355,6 +356,18 @@ class MPVController: NSObject {
                    "precision=\(Preference.integer(for: .audioResampleSoxrPrecision))"]
     if Preference.bool(for: .audioResampleSoxrCheby) { options.append("cheby=1") }
     return options.joined(separator: ",")
+  }
+
+  static func audioResampleEngine() -> String {
+    Preference.integer(for: .audioResampleEngine) == 2 ? "r8brain" : "swr"
+  }
+
+  static func pcmToDsdMode() -> String {
+    switch Preference.integer(for: .audioPcmToDsd) {
+    case 64: "dsd64"
+    case 128: "dsd128"
+    default: "off"
+    }
   }
 
   /// The value for `--audio-device`, resolving `auto` to a concrete device under exclusive mode.
@@ -481,6 +494,12 @@ class MPVController: NSObject {
                   verboseIfDefault: true) { key in
       return String(describing: Preference.enum(for: key) as Preference.HardwareDecoderOption)
     }
+    setUserOption(PK.dolbyVisionLevel5Mode, type: .other,
+                  forName: "dovi-level5-mode",
+                  verboseIfDefault: true) { key in
+      let mode: Preference.DolbyVisionLevel5Mode = Preference.enum(for: key)
+      return mode.mpvValue
+    }
 
     setUserOption(PK.audioLanguage, type: .string, forName: MPVOption.TrackSelection.alang,
                   level: .verbose)
@@ -521,6 +540,9 @@ class MPVController: NSObject {
     // 0 is mpv's "follow the source" value, so this binds straight through.
     setUserOption(PK.audioForcedSampleRate, type: .int, forName: MPVOption.Audio.audioSamplerate,
                   verboseIfDefault: true)
+    setUserOption(PK.audioPcmToDsd, type: .other,
+                  forName: MPVOption.Audio.coreaudioPcmToDsd,
+                  verboseIfDefault: true) { _ in Self.pcmToDsdMode() }
 
     // Register this after the exclusive-output observers: enabling DoP must reopen the Core Audio
     // output before the decoder starts sending its carrier.
@@ -540,6 +562,9 @@ class MPVController: NSObject {
       setUserOption(key, type: .other, forName: MPVOption.AudioResampler.audioSwresampleO,
                     applyNow: false) { _ in Self.audioResampleOptions() }
     }
+    setUserOption(PK.audioResampleEngine, type: .other,
+                  forName: MPVOption.AudioResampler.audioResampleEngine,
+                  verboseIfDefault: true) { _ in Self.audioResampleEngine() }
     setUserOption(PK.audioNormalizeDownmix, type: .bool,
                   forName: MPVOption.AudioResampler.audioNormalizeDownmix, verboseIfDefault: true)
 
@@ -582,8 +607,22 @@ class MPVController: NSObject {
 
     setUserOption(PK.subTextColorString, type: .color, forName: MPVOption.Subtitles.subColor,
                   verboseIfDefault: true)
-    setUserOption(PK.subBgColorString, type: .color, forName: MPVOption.Subtitles.subBackColor,
-                  verboseIfDefault: true)
+    let subtitleBackgroundEnabled = {
+      guard let value = Preference.string(for: PK.subBgColorString),
+            let color = NSColor(mpvColorString: value) else { return false }
+      return color.alphaComponent > 0
+    }
+    let subtitleBackColor: OptionObserverInfo.Transformer = { _ in
+      Preference.string(for: subtitleBackgroundEnabled() ? PK.subBgColorString : PK.subShadowColorString)
+    }
+    setUserOption(PK.subBgColorString, type: .other, forName: MPVOption.Subtitles.subBackColor,
+                  verboseIfDefault: true, transformer: subtitleBackColor)
+    setUserOption(PK.subShadowColorString, type: .other, forName: MPVOption.Subtitles.subBackColor,
+                  applyNow: false, transformer: subtitleBackColor)
+    setUserOption(PK.subBgColorString, type: .other, forName: "sub-border-style",
+                  verboseIfDefault: true) { _ in
+      subtitleBackgroundEnabled() ? "background-box" : "outline-and-shadow"
+    }
 
     setUserOption(PK.subBold, type: .bool, forName: MPVOption.Subtitles.subBold,
                   verboseIfDefault: true)
@@ -601,8 +640,6 @@ class MPVController: NSObject {
                   verboseIfDefault: true)
 
     setUserOption(PK.subShadowSize, type: .float, forName: MPVOption.Subtitles.subShadowOffset,
-                  verboseIfDefault: true)
-    setUserOption(PK.subShadowColorString, type: .color, forName: MPVOption.Subtitles.subShadowColor,
                   verboseIfDefault: true)
 
     setUserOption(PK.subAlignX, type: .other, forName: MPVOption.Subtitles.subAlignX,
@@ -795,7 +832,7 @@ class MPVController: NSObject {
       fatalError("mpvInitRendering() should be called after mpv handle being initialized!")
     }
     let apiType = UnsafeMutableRawPointer(mutating: (MPV_RENDER_API_TYPE_OPENGL as NSString).utf8String)
-    // Dolby Vision (profile 5/7/8, per-frame L1 and the L2/L8 creative trims)
+    // Dolby Vision (profile 5/7/8, per-frame L1/L2/L5/L8 metadata)
     // is only rendered by the libplacebo-based backend. The legacy 'gpu'
     // backend strips the DV metadata back out before it ever reaches the
     // renderer, so the base layer is displayed as plain HDR10.
@@ -1905,20 +1942,10 @@ class MPVController: NSObject {
       }
     }
 
-    // Changing the audio driver changes four options at once, and mpv's reload_audio_output()
-    // starts with `if (!mpctx->ao) return;`. The first of those options tears the output down, so
-    // every reload after it, including the one for the driver itself, does nothing, and mpv is
-    // left with no audio output at all: silent, position frozen, and unrecoverable except by
-    // seeking, which is what finally rebuilds the chain. Rebuild it here instead, once all four
-    // options are in place.
-    // Changing the audio driver changes four options at once, and mpv's reload_audio_output()
-    // starts with `if (!mpctx->ao) return;`. The first of those options tears the output down, so
-    // every reload after it, including the one for the driver itself, does nothing, and mpv is
-    // left with no audio output at all: silent, with the position frozen. A zero length exact
-    // seek is what rebuilds the chain, which is why seeking by hand was the only way out; do it
-    // here so the switch simply works. The position does not move.
+    // Changing the driver updates several AO options. The first tears down the output, so later
+    // reloads find no AO and return. A zero-length exact seek rebuilds after every option is set.
     if keyPath == PK.audioDriverEnableAVFoundation.rawValue {
-      log("Audio driver changed, rebuilding the audio chain")
+      log("Audio route changed, rebuilding the audio chain")
       DispatchQueue.main.async { [self] in
         guard player.info.state.active else { return }
         command(.seek, args: ["0", "relative+exact"], checkError: false)

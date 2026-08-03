@@ -38,22 +38,30 @@ architecture:
 
 | Area | Implemented capability |
 |---|---|
-| Dolby Vision | Profiles 5, 7, and 8; per-frame L1/L2/L8 metadata; profile 7 FEL base/enhancement-layer composition |
+| Dolby Vision | Profiles 5, 7, and 8; per-frame L1/L2/L5/L8 metadata; profile 7 FEL base/enhancement-layer composition |
 | Immersive audio | E-AC-3/TrueHD Atmos and DTS:X object-rendering paths, E-AC-3 AVFoundation passthrough, and native channel-based fallback |
-| Audiophile output | Core Audio exclusive access, physical sample-rate matching, hardware volume, USB DAC format recovery, and guarded format handoffs |
+| Audiophile output | Core Audio exclusive access, SoX or r8brain upsampling, PCM-to-DSD64/128, physical sample-rate matching, hardware volume, USB DAC format recovery, and guarded format handoffs |
 | DSD and SACD | Native DSF/DFF, raw DSD over DoP 1.1, DST-to-DSD, and SACD ISO areas, tracks, chapters, and seeking |
-| Audiophile DSP | Ordered headroom, manual or AutoEQ/REW parametric EQ, dynamic EQ, FIR correction, crossfeed, stereo correction, 2.1 bass management, speaker matrix/time alignment, and safety limiting |
+| Audiophile DSP | Ordered headroom, manual or AutoEQ/REW parametric EQ, dynamic EQ, FIR correction, crossfeed, stereo correction, 2.1 bass management, speaker matrix/time alignment, safety limiting, and installed macOS Audio Unit effects |
 | Diagnostics and delivery | Live signal-path Inspector, headless and hardware regression checks, and signed arm64 ZIP artifacts from GitHub Actions |
 
-The DSP rack is available from **Audio > Audio Filters...**. Modules can be
-combined, saved, and toggled as a signal chain. DSP operates on decoded PCM, so
-disable the rack when using encoded passthrough or DoP.
+The DSP rack is available from **Audio > Audio Filters...**. Modules and
+installed Audio Unit effects can be combined, saved, toggled, and reordered by
+dragging. Double-click an active Audio Unit to open its native interface. DSP
+operates on decoded PCM, so disable the rack when using encoded passthrough or
+DoP.
+
+Dolby Vision Level 5 active areas default to a black mask so changing
+letterbox offsets never resize the player window. **Settings → Video → Color &
+HDR** can switch to Crop mode when active-area sizing is preferred.
 
 FIR convolution accepts WAV, FLAC, AIFF, or CAF impulse responses. AutoEQ/REW
 import accepts Equalizer APO `ParametricEQ.txt` files with preamp, peak, and
 low/high-shelf entries, plus interpolated `GraphicEQ.txt` curves.
 Stereo 2.1 bass management emits FL, FR, and LFE channels and therefore requires
 an output device that exposes a compatible multichannel layout.
+
+The r8brain sample-rate converter was designed by Aleksey Vaneev of Voxengo.
 
 ## Downloading
 

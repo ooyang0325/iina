@@ -11,6 +11,56 @@ release is worth trusting on.
 
 ---
 
+## 1.9.2 — Audio Unit hosting and Dolby Vision Level 5
+
+- Added native macOS Audio Unit effect hosting in mpv. Installed `aufx` and
+  `aumf` components appear in IINA's existing Audio Filters browser and run in
+  the same ordered decoded-PCM chain as the built-in DSP modules.
+- Audio Unit filters negotiate planar float PCM, preserve state across format
+  changes, report processing latency, provide bit-exact bypass, and save/load
+  binary property-list presets. Double-clicking an active unit opens its custom
+  Cocoa interface, with Apple's generic parameter view as the fallback.
+- Current audio filters can now be reordered by dragging. The existing saved
+  filter mechanism stores both the component identity and its state file, so no
+  second preset or chain system was added.
+- Fixed opening an Audio Unit interface freezing IINA. The mpv core previously
+  waited synchronously for the main thread while IINA's UI timer waited for the
+  same core to answer a property query. UI creation and unit teardown are now
+  queued without blocking either thread.
+- Oversized Audio Unit interfaces now keep their native content size inside a
+  scroll view while the host window stays within the screen's visible frame.
+- Applied per-frame Dolby Vision Level 5 active-area offsets. The supplied
+  2908-frame Profile 7 CM v4.0 test was already composing FEL correctly (34
+  paired frames at the sampled timestamp, zero misses); its visible instruction
+  text came from ignoring the 320-row Level 5 letterbox exclusion. The libmpv
+  gpu-next mapper now also forwards source crop rectangles to libplacebo.
+- Added Mask and Crop presentation modes for Level 5. Mask is the default and
+  preserves the coded canvas/window size while clearing inactive regions to
+  black; Crop retains the prior active-area resize behavior.
+- Pinned mpv `37187e45c`; its 39 tests plus IINA's live option check cover AU
+  channel negotiation, latency reporting, bypass PCM identity, state reload,
+  and continued playback.
+
+### Phase 5
+
+- Added selectable r8brain upsampling using Aleksey Vaneev's pinned, MIT-licensed
+  r8brain-free-src 7.2 implementation. It runs at mpv's final resampling boundary,
+  so audio is never sample-rate converted twice. The app adds 352.8 and 384 kHz
+  output choices and pins mpv `328741a92` plus r8brain `8fff6f3db2`.
+- Added PCM-to-DSD64 and PCM-to-DSD128 over the existing guarded DoP 1.1 output.
+  The converter uses a second-order modulator with 6 dB headroom, exact 176.4 or
+  352.8 kHz integer carriers, Core Audio hog mode, and unity hardware volume.
+- Fixed DSD64/DSD128/PCM switching latching the DAC's hardware mute. Encoded
+  carriers are already stopped before their format is restored, so teardown no
+  longer mutes DoP and accidentally teaches the replacement output that mute-on
+  was the device's original state. DoP stays enabled and locked in settings
+  while PCM-to-DSD is active.
+- Merged current upstream `master` into the patched dependency branches:
+  mpv `104091ecf` includes mpv-player/mpv `1d1568614`, and libplacebo
+  `6e6cb8fe` includes haasn/libplacebo `4d82c689`.
+
+---
+
 ## 1.9.1 — Review-driven hardening
 
 An adversarial review of the whole fork, followed by a surgical patch pass.

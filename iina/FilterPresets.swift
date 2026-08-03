@@ -6,9 +6,56 @@
 //  Copyright © 2017 lhc. All rights reserved.
 //
 
+import AVFoundation
 import Foundation
 
 fileprivate typealias PM = FilterParameter
+
+private struct InstalledAudioUnit {
+  let title: String
+  let identifier: String
+
+  static func effectPreset() -> FilterPreset? {
+    let manager = AVAudioUnitComponentManager.shared()
+    let components = [kAudioUnitType_Effect, kAudioUnitType_MusicEffect].flatMap { type in
+      manager.components(matching: AudioComponentDescription(componentType: type,
+                                                              componentSubType: 0,
+                                                              componentManufacturer: 0,
+                                                              componentFlags: 0,
+                                                              componentFlagsMask: 0))
+    }.map { component -> InstalledAudioUnit in
+      let description = component.audioComponentDescription
+      let identifier = String(format: "%08x%08x%08x",
+                              description.componentType,
+                              description.componentSubType,
+                              description.componentManufacturer)
+      let suffix = String(format: "%08X/%08X",
+                          description.componentSubType,
+                          description.componentManufacturer)
+      return InstalledAudioUnit(title: "\(component.name) [\(suffix)]",
+                                identifier: identifier)
+    }.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+
+    guard !components.isEmpty else { return nil }
+    let byTitle = Dictionary(uniqueKeysWithValues: components.map { ($0.title, $0) })
+    return FilterPreset("dsp_audio_unit", params: [
+      "component": PM.choose(from: components.map(\.title))
+    ], paramOrder: "component") { instance in
+      guard let component = byTitle[instance.value(for: "component").stringValue] else {
+        return nil
+      }
+      let label = "iina_au_\(UUID().uuidString)"
+      let directory = Utility.appSupportDirUrl.appendingPathComponent(
+        AppData.audioUnitPresetsFolder, isDirectory: true)
+      Utility.createDirIfNotExist(url: directory)
+      let state = directory.appendingPathComponent("\(label).aupreset").path
+      return MPVFilter(name: "audiounit", label: label, params: [
+        "component": component.identifier,
+        "state": state
+      ])
+    }
+  }
+}
 
 /// Wrap a libavfilter graph for mpv's `af`/`vf` parser.
 ///
@@ -280,7 +327,7 @@ extension FilterPreset {
     customFFmpegFilterPreset
   ]
 
-  static let afPresets: [FilterPreset] = [
+  private static let builtInAfPresets: [FilterPreset] = [
     FilterPreset("dsp_headroom", params: [
       "gain": PM.text(defaultValue: "-3")
     ], paramOrder: "gain") { instance in
@@ -430,4 +477,13 @@ extension FilterPreset {
     customMPVFilterPreset,
     customFFmpegFilterPreset
   ]
+
+  static var afPresets: [FilterPreset] {
+    guard let audioUnit = InstalledAudioUnit.effectPreset() else {
+      return builtInAfPresets
+    }
+    var presets = builtInAfPresets
+    presets.insert(audioUnit, at: presets.count - 2)
+    return presets
+  }
 }

@@ -15,18 +15,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static typeof(mpv_wait_event) *wait_event_fn;
 static typeof(mpv_get_property_string) *get_property_fn;
 static typeof(mpv_set_property_string) *set_property_fn;
 static typeof(mpv_free) *free_fn;
+static typeof(mpv_create) *mpv_create_fn;
+static typeof(mpv_set_option_string) *mpv_set_option_string_fn;
+static typeof(mpv_initialize) *mpv_initialize_fn;
+static typeof(mpv_command) *mpv_command_fn;
+static typeof(mpv_terminate_destroy) *mpv_terminate_destroy_fn;
+static typeof(mpv_request_log_messages) *mpv_request_log_messages_fn;
 
 // mpv accepts an "af" value and reports it back before libavfilter has initialized the
 // graph. When init then fails, mpv drops the filter, logs the failure and keeps playing --
 // so "set returned 0", "af reads back non-empty" and "playback resumed" are all still true
 // for a filter that never ran. The only signal that survives is the log, so watch it.
 static int filter_errors;
+static int audio_unit_configured;
 
 static void pump(mpv_handle *mpv, double seconds)
 {
@@ -38,6 +46,14 @@ static void pump(mpv_handle *mpv, double seconds)
         if (text && (strstr(text, "Audio filter initialized failed") ||
                      strstr(text, "parsing the filter graph failed")))
             filter_errors++;
+        if (text && strstr(text, "Audio Unit") &&
+            (strstr(text, "Could not") || strstr(text, "does not support") ||
+             strstr(text, "not installed") || strstr(text, "render failed") ||
+             strstr(text, "Invalid")))
+            filter_errors++;
+        if (text && strstr(text, "Audio Unit") && strstr(text, "channels") &&
+            strstr(text, "latency"))
+            audio_unit_configured++;
     }
 }
 
@@ -140,6 +156,70 @@ static bool write_impulse_response(const char *path)
     return fclose(file) == 0;
 }
 
+static bool render_pcm(const char *path, const char *filter)
+{
+    mpv_handle *mpv = mpv_create_fn();
+    if (!mpv)
+        return false;
+
+    const char *options[][2] = {
+        {"config", "no"},
+        {"load-scripts", "no"},
+        {"vo", "null"},
+        {"vid", "no"},
+        {"ao", "pcm"},
+        {"ao-pcm-file", path},
+        {"ao-pcm-waveheader", "no"},
+        {"audio-format", "float"},
+    };
+    for (int n = 0; n < sizeof(options) / sizeof(options[0]); n++)
+        mpv_set_option_string_fn(mpv, options[n][0], options[n][1]);
+    if (mpv_initialize_fn(mpv) < 0) {
+        mpv_terminate_destroy_fn(mpv);
+        return false;
+    }
+    if (filter && set_property_fn(mpv, "af", filter) < 0) {
+        mpv_terminate_destroy_fn(mpv);
+        return false;
+    }
+
+    const char *command[] = {
+        "loadfile",
+        "av://lavfi:sine=frequency=997:duration=0.25,"
+        "aformat=sample_fmts=fltp:channel_layouts=stereo",
+        NULL
+    };
+    mpv_command_fn(mpv, command);
+    bool ended = false;
+    for (int n = 0; n < 200 && !ended; n++)
+        ended = wait_event_fn(mpv, 0.05)->event_id == MPV_EVENT_END_FILE;
+    mpv_terminate_destroy_fn(mpv);
+    return ended;
+}
+
+static bool files_equal(const char *left, const char *right)
+{
+    FILE *a = fopen(left, "rb");
+    FILE *b = fopen(right, "rb");
+    if (!a || !b) {
+        if (a) fclose(a);
+        if (b) fclose(b);
+        return false;
+    }
+    bool equal = true;
+    unsigned char x[4096], y[4096];
+    while (equal) {
+        size_t nx = fread(x, 1, sizeof(x), a);
+        size_t ny = fread(y, 1, sizeof(y), b);
+        equal = nx == ny && memcmp(x, y, nx) == 0;
+        if (!nx || nx != sizeof(x))
+            break;
+    }
+    fclose(a);
+    fclose(b);
+    return equal;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -156,7 +236,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL  %s\n", dlerror());
         return 2;
     }
-#define LOAD(n) typeof(n) *n##_fn = dlsym(library, #n)
+#define LOAD(n) n##_fn = dlsym(library, #n)
     LOAD(mpv_create);
     LOAD(mpv_set_option_string);
     LOAD(mpv_initialize);
@@ -187,8 +267,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL  mpv_initialize\n");
         return 2;
     }
-    // "error" includes fatal, which is the level lavfi uses for a graph parse failure.
-    mpv_request_log_messages_fn(mpv, "error");
+    mpv_request_log_messages_fn(mpv, "info");
 
     int failures = 0;
     const char *command[] = {"loadfile", file, NULL};
@@ -201,7 +280,14 @@ int main(int argc, char **argv)
         {"audio-exclusive", "yes"},
         {"audio-exclusive", "no"},
         {"audio-samplerate", "96000"},
+        {"audio-resample-engine", "r8brain"},
+        {"audio-resample-engine", "swr"},
         {"audio-samplerate", "0"},
+        {"dovi-level5-mode", "crop"},
+        {"dovi-level5-mode", "mask"},
+        {"coreaudio-pcm-to-dsd", "dsd64"},
+        {"coreaudio-pcm-to-dsd", "dsd128"},
+        {"coreaudio-pcm-to-dsd", "off"},
         {"audio-spdif", "ac3,dts"},
         {"audio-spdif", ""},
     };
@@ -274,6 +360,52 @@ int main(int argc, char **argv)
     for (int n = 0; n < sizeof(dsp) / sizeof(dsp[0]); n++)
         check_filter(mpv, dsp[n][0], dsp[n][1], &failures);
 
+    char au_state[256];
+    snprintf(au_state, sizeof(au_state), "/tmp/IINA Audio Unit %d.aupreset",
+             getpid());
+    char au_filter[1024];
+    snprintf(au_filter, sizeof(au_filter),
+             "@iina_au_check:audiounit=component=61756678627061736170706c:"
+             "state=%%%zu%%%s:bypass=yes", strlen(au_state), au_state);
+    int au_errors = filter_errors;
+    if (set_property_fn(mpv, "af", au_filter) < 0) {
+        fprintf(stderr, "FAIL  could not add Audio Unit effect\n");
+        failures++;
+    } else {
+        resumes(mpv, "Audio Unit bypass", &failures);
+        pump(mpv, 1);
+        if (filter_errors > au_errors || !audio_unit_configured) {
+            fprintf(stderr, "FAIL  Audio Unit did not configure\n");
+            failures++;
+        }
+
+        const char *enable[] = {
+            "af-command", "iina_au_check", "set-bypass", "no", NULL
+        };
+        if (mpv_command_fn(mpv, enable) < 0)
+            failures++, fprintf(stderr, "FAIL  could not enable Audio Unit\n");
+        else
+            resumes(mpv, "Audio Unit enabled", &failures);
+
+        const char *save[] = {
+            "af-command", "iina_au_check", "save-state", au_state, NULL
+        };
+        struct stat state_info;
+        if (mpv_command_fn(mpv, save) < 0 ||
+            stat(au_state, &state_info) < 0 || state_info.st_size == 0) {
+            failures++;
+            fprintf(stderr, "FAIL  Audio Unit preset was not saved\n");
+        }
+
+        set_property_fn(mpv, "af", "");
+        if (set_property_fn(mpv, "af", au_filter) < 0)
+            failures++, fprintf(stderr, "FAIL  Audio Unit preset did not reload\n");
+        else
+            resumes(mpv, "Audio Unit preset reload", &failures);
+        set_property_fn(mpv, "af", "");
+        unlink(au_state);
+    }
+
     char ir_path[256];
     snprintf(ir_path, sizeof(ir_path), "/tmp/IINA DSP IR %d.wav", getpid());
     if (write_impulse_response(ir_path)) {
@@ -286,6 +418,23 @@ int main(int argc, char **argv)
     } else {
         fprintf(stderr, "FAIL  could not create convolution impulse response\n");
         failures++;
+    }
+
+    char plain_pcm[256], bypass_pcm[256];
+    snprintf(plain_pcm, sizeof(plain_pcm), "/tmp/iina-au-plain-%d.pcm", getpid());
+    snprintf(bypass_pcm, sizeof(bypass_pcm), "/tmp/iina-au-bypass-%d.pcm", getpid());
+    const char *bypass =
+        "audiounit=component=61756678627061736170706c:bypass=yes";
+    bool bypass_equal = render_pcm(plain_pcm, NULL) &&
+                        render_pcm(bypass_pcm, bypass) &&
+                        files_equal(plain_pcm, bypass_pcm);
+    if (!bypass_equal) {
+        failures++;
+        fprintf(stderr, "FAIL  Audio Unit bypass changed PCM samples (%s, %s)\n",
+                plain_pcm, bypass_pcm);
+    } else {
+        unlink(plain_pcm);
+        unlink(bypass_pcm);
     }
 
     mpv_terminate_destroy_fn(mpv);

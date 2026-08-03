@@ -80,6 +80,10 @@ class SettingsPageVideo: SettingsPage {
           .image(name: ["sun.lefthalf.filled", "sun.max"])
           .bindTo(.enableHdrSupport)
           .hasDescription()
+        SettingsItem.PopupButton()
+          .image(name: "rectangle.inset.filled")
+          .bindTo(.dolbyVisionLevel5Mode, ofType: Preference.DolbyVisionLevel5Mode.self)
+          .hasDescription()
       }
 
       SettingsList {

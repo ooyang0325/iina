@@ -308,6 +308,8 @@ struct MPVOption {
     static let audioExclusive = "audio-exclusive"
     /// `ao_coreaudio` sub-option: reprogram the device's physical stream format to match the source.
     static let coreaudioChangePhysicalFormat = "coreaudio-change-physical-format"
+    /// `ao_coreaudio_exclusive` sub-option: convert PCM to DSD over DoP.
+    static let coreaudioPcmToDsd = "coreaudio-pcm-to-dsd"
     /** --audio-fallback-to-null=<yes|no> */
     static let audioFallbackToNull = "audio-fallback-to-null"
     /** --ao=<driver> */
@@ -970,6 +972,7 @@ struct MPVOption {
   }
 
   struct AudioResampler {
+    static let audioResampleEngine = "audio-resample-engine"
     /** --audio-resample-filter-size=<length> */
     static let audioResampleFilterSize = "audio-resample-filter-size"
     /** --audio-resample-phase-shift=<count> */
