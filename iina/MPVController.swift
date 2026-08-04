@@ -157,7 +157,10 @@ class MPVController: NSObject {
     MPVProperty.videoParamsPrimaries: MPV_FORMAT_STRING,
     MPVProperty.videoParamsGamma: MPV_FORMAT_STRING,
     MPVProperty.idleActive: MPV_FORMAT_FLAG,
-    MPVProperty.currentAo: MPV_FORMAT_STRING
+    MPVProperty.currentAo: MPV_FORMAT_STRING,
+    MPVController.discMenuActiveProperty: MPV_FORMAT_FLAG,
+    MPVController.discMenuPopupAvailableProperty: MPV_FORMAT_FLAG,
+    MPVController.discMouseOnButtonProperty: MPV_FORMAT_FLAG
   ]
 
   /// Map from mpv codec name to core media video codec types.
@@ -1700,6 +1703,25 @@ class MPVController: NSObject {
 
     case MPVProperty.currentAo:
       DispatchQueue.main.async { self.player.currentAoChanged() }
+
+    case MPVController.discMenuActiveProperty,
+         MPVController.discMenuPopupAvailableProperty,
+         MPVController.discMouseOnButtonProperty:
+      guard let value = UnsafePointer<Bool>(OpaquePointer(property.data))?.pointee else {
+        logPropertyValueError(name, property.format)
+        break
+      }
+      DispatchQueue.main.async { [self] in
+        switch name {
+        case MPVController.discMenuActiveProperty:
+          player.info.discMenuActive = value
+        case MPVController.discMenuPopupAvailableProperty:
+          player.info.discMenuPopupAvailable = value
+        default:
+          player.info.discMouseOnButton = value
+          player.mainWindow.updateDiscMenuCursor()
+        }
+      }
 
     default:
       // Utility.log("MPV property changed (unhandled): \(name)")

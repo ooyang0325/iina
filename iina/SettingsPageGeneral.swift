@@ -82,6 +82,9 @@ class SettingsPageGeneral: SettingsPage {
         SettingsItem.Switch()
           .image(name: "custom.macwindow.badge.pause")
           .bindTo(.keepOpenOnFileEnd)
+        SettingsItem.Switch()
+          .image(name: "opticaldisc")
+          .bindTo(.openDiscMenus)
       }
 
       SettingsList {

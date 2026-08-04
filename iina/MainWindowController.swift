@@ -1011,18 +1011,31 @@ class MainWindowController: PlayerWindowController {
     if Logger.isEmitting(.verbose) {
       log("MainWindow mouseDown @ \(event.locationInWindow)", level: .verbose)
     }
-    workaroundCursorDefect()
+    if !player.info.discMenuActive {
+      workaroundCursorDefect()
+    }
     // do nothing if it's related to floating OSC
     guard !oscFloatingView.isDragging else { return }
-    mousePosRelatedToWindow = event.locationInWindow
-    let consumedBySidebar = sidebars.handleMouseDown(event, at: event.locationInWindow)
-    // currently, it only passes the event to plugins in super
-    if !consumedBySidebar {
-      super.mouseDown(with: event)
+    let sidebarConsumed = sidebars.handleMouseDown(event, at: event.locationInWindow)
+    if sidebars.resizingSidebarSide != nil { return }
+    if updateDiscMenuMousePosition(event) {
+      sidebars.hideAllSideBars(animate: false) { [self] in
+        updateDiscMenuMousePosition(event)
+        discMenuMouseDown = true
+      }
+      return
     }
+    if sidebarConsumed { return }
+    mousePosRelatedToWindow = event.locationInWindow
+    // currently, it only passes the event to plugins in super
+    super.mouseDown(with: event)
   }
 
   override func mouseDragged(with event: NSEvent) {
+    if discMenuMouseDown {
+      updateDiscMenuMousePosition(event)
+      return
+    }
     if sidebars.handleMouseDragged(event) {
       return
     }
@@ -1053,7 +1066,16 @@ class MainWindowController: PlayerWindowController {
     if Logger.isEmitting(.verbose) {
       log("MainWindow mouseUp @ \(event.locationInWindow), isDragging: \(isDragging), resizingSidebar: \(String(describing: sidebars.resizingSidebarSide)), clickCount: \(event.clickCount)", level: .verbose)
     }
-    workaroundCursorDefect()
+    if !player.info.discMenuActive {
+      workaroundCursorDefect()
+    }
+    if discMenuMouseDown {
+      discMenuMouseDown = false
+      if updateDiscMenuMousePosition(event) {
+        player.mpv.discNavigate(.mouseClick)
+      }
+      return
+    }
     mousePosRelatedToWindow = nil
     if isDragging {
       // if it's a mouseup after dragging window
@@ -1167,8 +1189,12 @@ class MainWindowController: PlayerWindowController {
     if obj == 0 {
       // main window
       isMouseInWindow = true
-      showUI()
-      updateTimer()
+      if player.info.discMenuActive, updateDiscMenuMousePosition(event) {
+        player.mpv.discNavigate(.mouseMove)
+      } else {
+        showUI()
+        updateTimer()
+      }
     } else if obj == 1 {
       // slider
       if oscFloatingView.isDragging { return }
@@ -1191,6 +1217,9 @@ class MainWindowController: PlayerWindowController {
     if obj == 0 {
       // main window
       isMouseInWindow = false
+      if player.info.discMenuActive {
+        NSCursor.arrow.set()
+      }
       if oscFloatingView.isDragging { return }
       destroyTimer()
       hideUI()
@@ -1208,6 +1237,31 @@ class MainWindowController: PlayerWindowController {
   override func mouseMoved(with event: NSEvent) {
     guard !interactiveMode.isActive else { return }
 
+    if player.info.discMenuActive {
+      if updateDiscMenuMousePosition(event) {
+        player.mpv.discNavigate(.mouseMove)
+        let point = videoView.convert(event.locationInWindow, from: nil)
+        if animationState == .hidden,
+           point.y < 72 || point.y > videoView.bounds.height - 44 {
+          showUI()
+          updateTimer()
+        } else if animationState == .shown || animationState == .willShow {
+          updateTimer()
+        }
+      } else {
+        updateDiscMenuCursor()
+        refreshSeekTimeAndThumbnail(from: event)
+        if isMouseInWindow {
+          showUI()
+        }
+        if event.inAnyOf([currentControlBar, titleBarView]) {
+          destroyTimer()
+        } else {
+          updateTimer()
+        }
+      }
+      return
+    }
     refreshSeekTimeAndThumbnail(from: event)
     if isMouseInWindow {
       showUI()
@@ -1218,6 +1272,43 @@ class MainWindowController: PlayerWindowController {
     } else {
       updateTimer()
     }
+  }
+
+  private var discMenuMouseDown = false
+
+  @discardableResult
+  private func updateDiscMenuMousePosition(_ event: NSEvent) -> Bool {
+    let visibleControls = mouseActionDisabledViews.compactMap { $0 }.filter {
+      !$0.isHidden && $0.alphaValue > 0.01
+    }
+    guard player.info.discMenuActive, !event.inAnyOf(visibleControls) else { return false }
+    let point = videoView.convert(event.locationInWindow, from: nil)
+    guard videoView.bounds.contains(point) else { return false }
+    let backingPoint = videoView.convertToBacking(NSRect(origin: point, size: .zero)).origin
+    let backingBounds = videoView.convertToBacking(videoView.bounds)
+    player.mpv.command(.mouse, args: [
+      "\(Int(backingPoint.x))",
+      "\(Int(backingBounds.height - backingPoint.y))"
+    ], checkError: false, level: .verbose)
+    return true
+  }
+
+  func updateDiscMenuCursor() {
+    guard loaded, let window, window.isKeyWindow, let contentView = window.contentView else { return }
+    let location = contentView.convert(window.mouseLocationOutsideOfEventStream, from: nil)
+    let visibleControls = mouseActionDisabledViews.compactMap { $0 }.filter {
+      !$0.isHidden && $0.alphaValue > 0.01
+    }
+    guard let hitView = contentView.hitTest(location),
+          videoView.bounds.contains(videoView.convert(location, from: contentView)),
+          !visibleControls.contains(where: {
+            hitView === $0 || hitView.isDescendant(of: $0)
+          })
+    else {
+      NSCursor.arrow.set()
+      return
+    }
+    (player.info.discMouseOnButton ? NSCursor.pointingHand : NSCursor.arrow).set()
   }
 
   @objc func handleMagnifyGesture(recognizer: NSMagnificationGestureRecognizer) {

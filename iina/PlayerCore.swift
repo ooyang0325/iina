@@ -316,6 +316,8 @@ class PlayerCore: NSObject {
 
   /// URL to open once an outstanding mpv stop command completes.
   private var pendingUrl: URL?
+  private var pendingPath: String?
+  private var discMenuFallbackPath: String?
 
   let playerNumber: Int
 
@@ -391,7 +393,7 @@ class PlayerCore: NSObject {
 
   // MARK: - Control
 
-  private func open(_ url: URL?, shouldAutoLoad: Bool = false) {
+  private func open(_ url: URL?, shouldAutoLoad: Bool = false, path customPath: String? = nil) {
     guard let url = url else {
       log("empty file path or url", level: .error)
       return
@@ -404,6 +406,7 @@ class PlayerCore: NSObject {
       log("Waiting for stop command to finish before opening: \(url.absoluteString)")
       pendingAutoLoad = shouldAutoLoad
       pendingUrl = url
+      pendingPath = customPath
       return
     }
     let isNetwork = !url.isFileURL || url.pathExtension.starts(with: "m3u")
@@ -414,6 +417,7 @@ class PlayerCore: NSObject {
       log("Closing window before opening: \(url.absoluteString)")
       pendingAutoLoad = shouldAutoLoad
       pendingUrl = url
+      pendingPath = customPath
       currentWindow.close()
       return
     }
@@ -422,7 +426,7 @@ class PlayerCore: NSObject {
       info.shouldAutoLoadFiles = true
     }
     info.hdrEnabled = Preference.bool(for: .enableHdrSupport)
-    let path = url.isFileURL ? url.path : url.absoluteString
+    let path = customPath ?? (url.isFileURL ? url.path : url.absoluteString)
     openMainWindow(path: path, url: url, isNetwork: isNetwork)
   }
 
@@ -442,9 +446,31 @@ class PlayerCore: NSObject {
     // For these cases, mpv will load/build the playlist and notify IINA when it can be retrieved.
     if urls.count == 1 {
       let url = urls[0]
+      discMenuFallbackPath = nil
 
-      if isBDFolder(url)
-          || Utility.playlistFileExt.contains(url.absoluteString.lowercasedPathExtension) {
+      if let root = bdFolderRoot(url) {
+        info.shouldAutoLoadFiles = false
+        let path = Preference.bool(for: .openDiscMenus) ? "bd://menu/\(root.path)" : url.path
+        open(url, path: path)
+        return nil
+      }
+
+      if let root = dvdFolderRoot(url) {
+        info.shouldAutoLoadFiles = false
+        let path = Preference.bool(for: .openDiscMenus) ? "dvd://menu/\(root.path)" : url.path
+        open(url, path: path)
+        return nil
+      }
+
+      if url.pathExtension.caseInsensitiveCompare("iso") == .orderedSame,
+         Preference.bool(for: .openDiscMenus) {
+        info.shouldAutoLoadFiles = false
+        discMenuFallbackPath = "dvd://menu/\(url.path)"
+        open(url, path: "bd://menu/\(url.path)")
+        return nil
+      }
+
+      if Utility.playlistFileExt.contains(url.absoluteString.lowercasedPathExtension) {
         info.shouldAutoLoadFiles = false
         open(url)
         return nil
@@ -533,7 +559,8 @@ class PlayerCore: NSObject {
   private func openMainWindow(path: String, url: URL, isNetwork: Bool) {
     log("Opening \(path) in main window")
     info.currentURL = url
-    info.mpvMd5 = Utility.mpvWatchLaterMd5(url, ignorePathInWatchLaterConfig)
+    info.mpvMd5 = path.contains("://") ? path.md5 :
+      Utility.mpvWatchLaterMd5(URL(fileURLWithPath: path), ignorePathInWatchLaterConfig)
     info.isNetworkResource = isNetwork
     info.audioTracks = []
     info.chapters = []
@@ -546,6 +573,10 @@ class PlayerCore: NSObject {
     info.videoPosition = nil
     info.videoTracks = []
     info.videoWidth = nil
+    info.discNavigationAvailable = path.hasPrefix("bd://menu/") || path.hasPrefix("dvd://menu/")
+    info.discMenuActive = false
+    info.discMenuPopupAvailable = false
+    info.discMouseOnButton = false
     if isNetwork {
       AppDelegate.shared.openURLWindow.showLoadingScreen(playerCore: self)
     }
@@ -2165,13 +2196,15 @@ class PlayerCore: NSObject {
     info.justStartedFile = true
     info.disableOSDForFileLoading = true
 
-    info.currentURL = path.contains("://") ?
-      URL(string: path.addingPercentEncoding(withAllowedCharacters: .urlAllowed) ?? path) :
-      URL(fileURLWithPath: path)
-    if let url = info.currentURL {
-      info.mpvMd5 = Utility.mpvWatchLaterMd5(url, ignorePathInWatchLaterConfig)
+    if !info.discNavigationAvailable {
+      info.currentURL = path.contains("://") ?
+        URL(string: path.addingPercentEncoding(withAllowedCharacters: .urlAllowed) ?? path) :
+        URL(fileURLWithPath: path)
+      if let url = info.currentURL {
+        info.mpvMd5 = Utility.mpvWatchLaterMd5(url, ignorePathInWatchLaterConfig)
+      }
+      info.isNetworkResource = !info.currentURL!.isFileURL
     }
-    info.isNetworkResource = !info.currentURL!.isFileURL
 
     // set "date last opened" attribute
     if let url = info.currentURL, url.isFileURL {
@@ -2250,6 +2283,7 @@ class PlayerCore: NSObject {
   ///         the player is no longer active.
   func fileLoaded() {
     guard info.state.active else { return }
+    discMenuFallbackPath = nil
     log("File loaded")
 
     info.state = .loaded
@@ -2316,8 +2350,8 @@ class PlayerCore: NSObject {
         guard mediaTitle != url.lastPathComponent else { return nil }
         return mediaTitle
       }()
-      HistoryController.shared.add(url, duration: duration.second, title: titleToUse,
-                                   ignorePathInWatchLaterConfig)
+      let mpvMd5 = info.mpvMd5 ?? Utility.mpvWatchLaterMd5(url, ignorePathInWatchLaterConfig)
+      HistoryController.shared.add(url, duration: duration.second, title: titleToUse, mpvMd5: mpvMd5)
       if Preference.bool(for: .recordRecentFiles) && Preference.bool(for: .trackAllFilesInRecentOpenMenu) {
         AppDelegate.shared.noteNewRecentDocumentURL(url)
       }
@@ -2335,6 +2369,17 @@ class PlayerCore: NSObject {
     // wait for idle
     if info.state == .loading || info.state == .starting {
       if !dueToStopCommand {
+        if let fallback = discMenuFallbackPath, let url = info.currentURL {
+          discMenuFallbackPath = nil
+          pendingAutoLoad = false
+          pendingUrl = url
+          pendingPath = fallback
+          if info.state == .loading {
+            info.state = .starting
+          }
+          log("Blu-ray image probe failed; retrying as DVD")
+          return
+        }
         receivedEndFileWhileLoading = true
       }
     } else {
@@ -2455,8 +2500,10 @@ class PlayerCore: NSObject {
       postNotification(.iinaPlayerStopped)
       if let pendingUrl {
         self.pendingUrl = nil
+        let path = pendingPath
+        pendingPath = nil
         log("Processing pending open")
-        open(pendingUrl, shouldAutoLoad: pendingAutoLoad)
+        open(pendingUrl, shouldAutoLoad: pendingAutoLoad, path: path)
       }
     }
   }

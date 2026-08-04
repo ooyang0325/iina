@@ -197,6 +197,18 @@ extension MainMenuActionHandler {
   @objc func menuPreviousChapter(_ sender: NSMenuItem) {
     player.mpv.command(.add, args: ["chapter", "-1"], checkError: false)
   }
+
+  @objc func menuDiscTop(_ sender: NSMenuItem) {
+    player.mpv.discNavigate(.topMenu)
+  }
+
+  @objc func menuDiscPopup(_ sender: NSMenuItem) {
+    player.mpv.discNavigate(.popup)
+  }
+
+  @objc func menuDiscResume(_ sender: NSMenuItem) {
+    player.mpv.discNavigate(.resume)
+  }
 }
 
 // MARK: - Video

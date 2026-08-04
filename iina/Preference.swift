@@ -41,6 +41,7 @@ struct Preference {
     static let groupSimultaneousOpensInPlaylist = Key("groupSimultaneousOpensInPlaylist")
     static let allowDuplicatePlayers = Key("allowDuplicatePlayers")
     static let enableCmdN = Key("enableCmdN")
+    static let openDiscMenus = Key("openDiscMenus")
 
     /** Record recent files */
     static let recordPlaybackHistory = Key("recordPlaybackHistory")
@@ -1062,6 +1063,7 @@ struct Preference {
     .groupSimultaneousOpensInPlaylist: false,
     .allowDuplicatePlayers: false,
     .enableCmdN: false,
+    .openDiscMenus: true,
     .recordPlaybackHistory: true,
     .recordRecentFiles: true,
     .trackAllFilesInRecentOpenMenu: true,
@@ -1452,6 +1454,7 @@ struct Preference {
            .enableAdvancedSettings,
            .enableCache,
            .enableCmdN,
+           .openDiscMenus,
            .enableControlBarAutoHide,
            .enableDisplayIdle,
            .enableFFmpegImageDecoder,

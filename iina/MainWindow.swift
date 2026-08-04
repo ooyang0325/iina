@@ -12,6 +12,10 @@ class MainWindow: NSWindow {
   var forceKeyAndMain = false
 
   override func keyDown(with event: NSEvent) {
+    if shouldRouteDiscMenuKeys, let controller = windowController as? MainWindowController {
+      let key = KeyCodeHelper.normalizeMpv(KeyCodeHelper.mpvKeyCode(from: event))
+      if controller.handleDiscMenuKey(key) { return }
+    }
     if menu?.performKeyEquivalent(with: event) == true {
       return
     }
@@ -26,6 +30,10 @@ class MainWindow: NSWindow {
   }
 
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    if shouldRouteDiscMenuKeys, let controller = windowController as? MainWindowController {
+      let key = KeyCodeHelper.normalizeMpv(KeyCodeHelper.mpvKeyCode(from: event))
+      if controller.handleDiscMenuKey(key) { return true }
+    }
     /// AppKit by default will prioritize menu item key equivalents over arrow key navigation
     /// (although for some reason it is the opposite for `ESC`, `TAB`, `ENTER` or `RETURN`).
     /// Need to add an explicit check here for arrow keys to ensure that they always work when desired.
@@ -44,6 +52,15 @@ class MainWindow: NSWindow {
       }
     }
     return super.performKeyEquivalent(with: event)
+  }
+
+  private var shouldRouteDiscMenuKeys: Bool {
+    guard let controller = windowController as? MainWindowController else { return false }
+    guard controller.player.info.discMenuActive else { return false }
+    guard NSApp.mainMenu?.highlightedItem == nil else { return false }
+    let responder = firstResponder
+    return !(responder is NSTextView || responder is NSTableView ||
+      responder is NSOutlineView || responder is NSCollectionView)
   }
 
   private func shouldFavorArrowKeyNavigation(for responder: NSResponder) -> Bool {

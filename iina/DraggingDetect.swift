@@ -100,7 +100,7 @@ extension PlayerCore {
      - url: The URL.
    - Returns: Whether the URL is a BD folder.
    */
-  func isBDFolder(_ url: URL) -> Bool {
+  func bdFolderRoot(_ url: URL) -> URL? {
   
     func isBDMVFolder(_ url: URL) -> Bool {
       if let files = try? FileManager.default.contentsOfDirectory(atPath: url.path) {
@@ -110,12 +110,29 @@ extension PlayerCore {
     }
     
     if isBDMVFolder(url) {
-      return true
+      return url.deletingLastPathComponent()
     }
     
     let bdmvFolder = url.appendingPathComponent("BDMV")
-    guard bdmvFolder.isExistingDirectory else { return false }
-    return isBDMVFolder(bdmvFolder)
+    guard bdmvFolder.isExistingDirectory, isBDMVFolder(bdmvFolder) else { return nil }
+    return url
+  }
+
+  func isBDFolder(_ url: URL) -> Bool {
+    bdFolderRoot(url) != nil
+  }
+
+  func dvdFolderRoot(_ url: URL) -> URL? {
+    func hasVideoTSIFO(_ url: URL) -> Bool {
+      (try? FileManager.default.contentsOfDirectory(atPath: url.path))?
+        .contains { $0.caseInsensitiveCompare("VIDEO_TS.IFO") == .orderedSame } == true
+    }
+
+    if hasVideoTSIFO(url) {
+      return url.deletingLastPathComponent()
+    }
+    let videoTS = url.appendingPathComponent("VIDEO_TS")
+    return videoTS.isExistingDirectory && hasVideoTSIFO(videoTS) ? url : nil
   }
 
   /**

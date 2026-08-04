@@ -11,6 +11,26 @@ release is worth trusting on.
 
 ---
 
+## Unreleased — Authored DVD and Blu-ray menus
+
+- Added HDMV First Play, Top Menu, and Pop-up Menu playback through libbluray,
+  including authored overlays, keyboard/mouse navigation, stills, transitions,
+  prohibited-operation state, and bounded menu sound effects on decoded PCM.
+- Added DVD First Play and VMGM/VTS menu playback through libdvdnav. Authored
+  SPU button shapes use PCI crop and selected/activated palette recoloring;
+  motion-menu audio remains in-band.
+- Added direct folder/ISO opening with Blu-ray-to-DVD probing, plus a setting to
+  retain direct-title playback. Disc navigation preserves local history and
+  watch-later identity.
+- Fixed Blu-ray RLE end-of-line decoding that rendered opaque gray rectangles
+  behind menu text.
+- Pinned mpv `f89de2d8b`; all 42 mpv tests pass, including HDMV overlay, DVD
+  highlight/navigation, WAIT-drain, and menu-sound mixer checks.
+- BD-J remains deferred; the bundled libbluray 1.4.1 handles the supplied HDMV
+  discs without requiring an upgrade or Java runtime.
+
+---
+
 ## 1.9.2 — Audio Unit hosting and Dolby Vision Level 5
 
 - Added native macOS Audio Unit effect hosting in mpv. Installed `aufx` and

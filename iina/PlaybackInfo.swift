@@ -129,6 +129,10 @@ class PlaybackInfo {
   var justStartedFile: Bool = false
   var justOpenedFile: Bool = false
   var shouldAutoLoadFiles: Bool = false
+  var discNavigationAvailable = false
+  var discMenuActive = false
+  var discMenuPopupAvailable = false
+  var discMouseOnButton = false
   var isMatchingSubtitles = false
   var disableOSDForFileLoading: Bool = false
 

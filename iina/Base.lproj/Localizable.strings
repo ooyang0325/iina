@@ -204,6 +204,9 @@
 "menu.resume" = "Resume";
 "menu.speed" = "Speed: %@x";
 "menu.chapters" = "Show Chapters Panel";
+"menu.disc_top" = "Top Menu";
+"menu.disc_popup" = "Pop-up Menu";
+"menu.disc_resume" = "Resume Title";
 "menu.hide_chapters" = "Hide Chapters Panel";
 "menu.playlist" = "Show Playlist Panel";
 "menu.hide_playlist" = "Hide Playlist Panel";
@@ -626,6 +629,7 @@
 "settings.pauseWhenLeavingFullScreen.label" = "Pause upon leaving full screen";
 "settings.pauseWhenMinimized.label" = "Minimized/un-minimized";
 "settings.pauseWhenOpen.label" = "Pause";
+"settings.openDiscMenus.label" = "Open disc folders and images with authored menus";
 "settings.pauseresumeWhen" = "Pause/resume when";
 "settings.playWhenEnteringFullScreen.label" = "Play upon entering full screen";
 "settings.playlistAutoAdd.desc" = "Requires restarting IINA to take effect.";

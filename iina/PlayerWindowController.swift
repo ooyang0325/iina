@@ -342,6 +342,23 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
       super.keyDown(with: event)
     })
   }
+
+  @discardableResult
+  func handleDiscMenuKey(_ normalizedKeyCode: String) -> Bool {
+    guard player.info.discMenuActive else { return false }
+    let action: MPVController.DiscNavigationAction? = switch normalizedKeyCode {
+    case "UP": .up
+    case "DOWN": .down
+    case "LEFT": .left
+    case "RIGHT": .right
+    case "ENTER", "KP_ENTER": .select
+    case "ESC": .resume
+    default: nil
+    }
+    guard let action else { return false }
+    player.mpv.discNavigate(action)
+    return true
+  }
   
   override func keyUp(with event: NSEvent) {
     let keyCode = KeyCodeHelper.mpvKeyCode(from: event)

@@ -123,6 +123,15 @@ class MenuController: NSObject, NSMenuDelegate {
   @IBOutlet weak var previousChapter: NSMenuItem!
   @IBOutlet weak var chapter: NSMenuItem!
   @IBOutlet weak var chapterMenu: NSMenu!
+  private let discTopMenu = NSMenuItem(title: NSLocalizedString("menu.disc_top", comment: "Top Menu"),
+                                       action: #selector(MainMenuActionHandler.menuDiscTop(_:)),
+                                       keyEquivalent: "")
+  private let discPopupMenu = NSMenuItem(title: NSLocalizedString("menu.disc_popup", comment: "Pop-up Menu"),
+                                         action: #selector(MainMenuActionHandler.menuDiscPopup(_:)),
+                                         keyEquivalent: "")
+  private let discResume = NSMenuItem(title: NSLocalizedString("menu.disc_resume", comment: "Resume Title"),
+                                      action: #selector(MainMenuActionHandler.menuDiscResume(_:)),
+                                      keyEquivalent: "")
   // Video
   @IBOutlet weak var videoMenu: NSMenu!
   @IBOutlet weak var quickSettingsVideo: NSMenuItem!
@@ -242,6 +251,9 @@ class MenuController: NSObject, NSMenuDelegate {
 
     pause.action = #selector(MainMenuActionHandler.menuTogglePause(_:))
     stop.action = #selector(MainMenuActionHandler.menuStop(_:))
+    playbackMenu.insertItem(discTopMenu, at: 2)
+    playbackMenu.insertItem(discPopupMenu, at: 3)
+    playbackMenu.insertItem(discResume, at: 4)
 
     // -- seeking
     forward.action = #selector(MainMenuActionHandler.menuStep(_:))
@@ -502,6 +514,13 @@ class MenuController: NSObject, NSMenuDelegate {
     let isDisplayingChapters = playlistPanelVisible && player.mainWindow.sidebars.playlistView.currentTab == .chapters
     chapterPanel?.title = isDisplayingChapters ? Constants.String.hideChaptersPanel : Constants.String.chaptersPanel
     pause.title = player.info.state == .paused ? Constants.String.resume : Constants.String.pause
+    let hasDiscNavigation = player.info.discNavigationAvailable
+    discTopMenu.isHidden = !hasDiscNavigation
+    discPopupMenu.isHidden = !hasDiscNavigation
+    discResume.isHidden = !hasDiscNavigation
+    discTopMenu.isEnabled = hasDiscNavigation
+    discPopupMenu.isEnabled = player.info.discMenuPopupAvailable
+    discResume.isEnabled = player.info.discMenuActive
     abLoop.state = player.isABLoopActive ? .on : .off
     let loopMode = player.getLoopMode()
     fileLoop.state = loopMode == .file ? .on : .off
