@@ -1072,6 +1072,7 @@ class MainWindowController: PlayerWindowController {
     if discMenuMouseDown {
       discMenuMouseDown = false
       if updateDiscMenuMousePosition(event) {
+        player.mpv.discNavigate(.mouseMove)
         player.mpv.discNavigate(.mouseClick)
       }
       return

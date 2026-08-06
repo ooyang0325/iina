@@ -2910,7 +2910,7 @@ class PlayerCore: NSObject {
   ///     milliseconds. Due to this behavior of the `time-pos` property, this method checks to see of the end of the video has been
   ///     reached and if so, sets `videoPosition` to match `videoDuration`.
   private func syncPosition() {
-    if info.isNetworkResource {
+    if info.isNetworkResource || info.discNavigationAvailable {
       info.videoDuration?.second = mpv.getDouble(MPVProperty.duration)
     }
     let eofReached = mpv.getFlag(MPVProperty.eofReached)
@@ -2960,6 +2960,7 @@ class PlayerCore: NSObject {
 
     case .time:
       let isNetworkStream = info.isNetworkResource
+      let hasDynamicDuration = isNetworkStream || info.discNavigationAvailable
       syncPosition()
       info.videoRemaining?.second = Preference.bool(for: .scaleRemainingTime) ?
       mpv.getDouble(MPVProperty.playtimeRemainingFull) :
@@ -2974,7 +2975,7 @@ class PlayerCore: NSObject {
         info.bufferingState = mpv.getInt(MPVProperty.cacheBufferingState)
       }
       DispatchQueue.main.async { [self] in
-        currentController.updatePlayTime(withDuration: isNetworkStream, andProgressBar: true)
+        currentController.updatePlayTime(withDuration: hasDynamicDuration, andProgressBar: true)
         if !self.isInMiniPlayer && mainWindow.fsState.isFullscreen && mainWindow.displayTimeAndBatteryInFullScreen && !mainWindow.additionalInfoView.isHidden {
           self.mainWindow.additionalInfoView.update()
         }

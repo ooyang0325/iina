@@ -1,0 +1,39 @@
+diff --git a/src/libbluray/bluray.c b/src/libbluray/bluray.c
+--- a/src/libbluray/bluray.c
++++ b/src/libbluray/bluray.c
+@@ -1831,5 +1831,15 @@ uint64_t bd_tell_time(BLURAY *bd)
+ 
+     return ((uint64_t)out_time) * 2;
+ }
+ 
++uint32_t bd_get_gpr(BLURAY *bd, unsigned reg)
++{
++    if (!bd || reg >= 4096)
++        return 0;
++    bd_mutex_lock(&bd->mutex);
++    uint32_t value = bd_gpr_read(bd->regs, reg);
++    bd_mutex_unlock(&bd->mutex);
++    return value;
++}
++
+ int64_t bd_seek_chapter(BLURAY *bd, unsigned chapter)
+diff --git a/src/libbluray/bluray.h b/src/libbluray/bluray.h
+--- a/src/libbluray/bluray.h
++++ b/src/libbluray/bluray.h
+@@ -708,7 +708,16 @@ BD_PUBLIC uint64_t bd_tell(BLURAY *bd);
+  */
+ BD_PUBLIC uint64_t bd_tell_time(BLURAY *bd);
+ 
++/**
++ * Read an HDMV general-purpose register.
++ *
++ * @param bd BLURAY object
++ * @param reg register index (0...4095)
++ * @return register value, or 0 for invalid input
++ */
++BD_PUBLIC uint32_t bd_get_gpr(BLURAY *bd, unsigned reg);
++
+ 
+ /*
+  * player settings
+  */

@@ -675,7 +675,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
     guard player.info.state.active else { return }
     if !always {
       let notVideo = player.info.currentTrack(.video)?.isImage ?? true
-      guard player.info.state == .paused || notVideo else { return }
+      guard player.info.state == .paused || notVideo || player.info.discMenuActive else { return }
     }
     log("Forcing drawing, \(reason)")
     videoView.videoLayer.update(force: true)

@@ -24,7 +24,7 @@
 #            only, never for anything published.
 #
 # Requires: Xcode command line tools, and from Homebrew:
-#   meson ninja pkg-config nasm libass luajit uchardet libarchive libbluray
+#   meson ninja pkg-config nasm libass luajit uchardet libarchive
 #   little-cms2 dav1d ffmpeg (for its own dependencies)
 #   libsoxr rubberband libopenmpt jpeg-xl libssh libdvdnav libdvdread libdvdcss
 
@@ -48,7 +48,9 @@ FFMPEG_REV="0e3ed1fcb7"
 PLACEBO_URL="https://github.com/ooyang0325/libplacebo.git"
 PLACEBO_REV="6e6cb8feb45871f6db8084a4569ad6457240eb9f"
 MPV_URL="https://github.com/ooyang0325/mpv.git"
-MPV_REV="f89de2d8bd8ee14a9517d168928d1864070ca63d"
+MPV_REV="7828751d2aa2cc7952d9a3eea0281392278bc99c"
+LIBBLURAY_URL="https://code.videolan.org/videolan/libbluray.git"
+LIBBLURAY_REV="1.4.1"
 R8BRAIN_URL="https://github.com/avaneev/r8brain-free-src.git"
 R8BRAIN_REV="8fff6f3db26f14a8f5e8fb871000613673db5753"
 SACD_URL="https://github.com/Sound-Linux-More/sacd.git"
@@ -205,6 +207,18 @@ cc "$REPO_ROOT/other/check_dst_raw.c" \
    $("$PKG_CONFIG" --cflags --libs libavcodec libavutil) \
    -o "$PREFIX/check_dst_raw"
 DYLD_LIBRARY_PATH="$PREFIX/lib" "$PREFIX/check_dst_raw"
+
+# ---- libbluray --------------------------------------------------------------
+fetch libbluray "$LIBBLURAY_URL" "$LIBBLURAY_REV"
+echo ">> building libbluray"
+( cd "$SRC/libbluray" \
+  && git apply --reverse --check "$REPO_ROOT/other/patches/libbluray-gpr-read.patch" \
+       >/dev/null 2>&1 || git apply "$REPO_ROOT/other/patches/libbluray-gpr-read.patch" )
+( cd "$SRC/libbluray" && git submodule update --init --recursive \
+  && meson setup build --prefix="$PREFIX" --buildtype=release --wipe \
+       -Dbdj_jar=disabled -Denable_docs=false -Denable_examples=false \
+       -Denable_tools=false -Denable_devtools=false \
+  && meson compile -C build && meson install -C build )
 
 # ---- libplacebo -------------------------------------------------------------
 fetch libplacebo "$PLACEBO_URL" "$PLACEBO_REV"
