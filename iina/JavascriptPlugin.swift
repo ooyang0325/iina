@@ -111,8 +111,6 @@ class JavascriptPlugin: NSObject {
   }
 
   static private func loadPlugins() -> [JavascriptPlugin] {
-    guard IINA_ENABLE_PLUGIN_SYSTEM else { return [] }
-
     guard let contents = try?
       FileManager.default.contentsOfDirectory(at: Utility.pluginsURL,
                                               includingPropertiesForKeys: [.isDirectoryKey],

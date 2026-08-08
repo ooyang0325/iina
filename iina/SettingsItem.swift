@@ -820,7 +820,6 @@ struct SettingsItem {
     private var trailingLabel: SettingsLocalization.Key?
     private var customBinding = false
     private var customBindingBlock: ((NSTextField) -> Void)?
-    private var isLongText = false
 
     private var cachedStepperValue: Double?
     private var stepper: NSStepper?
@@ -955,12 +954,6 @@ struct SettingsItem {
 
     func bindInputTo(_ key: Preference.Key) -> Self {
       self.keyInput = key
-      return self
-    }
-
-    func bindInputToCustom(block: @escaping (NSTextField) -> Void) -> Self {
-      self.customBindingInput = true
-      self.customBindingBlockInput = block
       return self
     }
 

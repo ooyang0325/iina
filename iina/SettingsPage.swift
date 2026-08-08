@@ -103,16 +103,6 @@ struct SettingsItemsBuilder {
 }
 
 @resultBuilder
-struct SettingsSubItemsBuilder {
-  static func buildBlock(_ components: SettingsItem.Base...) -> [SettingsItem.Base] {
-    for component in components {
-      component.controlSize = .small
-    }
-    return components
-  }
-}
-
-@resultBuilder
 struct SettingsSubListBuilder {
   static func buildBlock(_ components: SettingsItem.Base...) -> SettingsSubList {
     return SettingsSubList(components)

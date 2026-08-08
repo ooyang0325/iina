@@ -498,11 +498,6 @@ class Utility {
 
   // MARK: - Util functions
 
-  static func setBoldTitle(for button: NSButton, _ active: Bool) {
-    button.attributedTitle = NSAttributedString(string: button.title,
-                                                attributes: FontAttributes(font: active ? .systemBold : .system, size: .system, align: .center).value)
-  }
-
   static func toDisplaySubScale(fromRealSubScale realScale: Double) -> Double {
     return realScale >= 1 ? realScale : -1 / realScale
   }
@@ -683,11 +678,6 @@ class Utility {
   }
 }
 
-// http://stackoverflow.com/questions/33294620/
-func rawPointerOf<T : AnyObject>(obj : T) -> UnsafeRawPointer {
-  return UnsafeRawPointer(Unmanaged.passUnretained(obj).toOpaque())
-}
-
 func mutableRawPointerOf<T : AnyObject>(obj : T) -> UnsafeMutableRawPointer {
   return UnsafeMutableRawPointer(Unmanaged.passUnretained(obj).toOpaque())
 }
@@ -695,14 +685,6 @@ func mutableRawPointerOf<T : AnyObject>(obj : T) -> UnsafeMutableRawPointer {
 
 func bridge<T : AnyObject>(ptr : UnsafeRawPointer) -> T {
   return Unmanaged<T>.fromOpaque(ptr).takeUnretainedValue()
-}
-
-func bridgeRetained<T : AnyObject>(obj : T) -> UnsafeRawPointer {
-  return UnsafeRawPointer(Unmanaged.passRetained(obj).toOpaque())
-}
-
-func bridgeTransfer<T : AnyObject>(ptr : UnsafeRawPointer) -> T {
-  return Unmanaged<T>.fromOpaque(ptr).takeRetainedValue()
 }
 
 enum LoopMode {

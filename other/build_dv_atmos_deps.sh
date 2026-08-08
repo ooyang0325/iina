@@ -48,7 +48,7 @@ FFMPEG_REV="0e3ed1fcb7"
 PLACEBO_URL="https://github.com/ooyang0325/libplacebo.git"
 PLACEBO_REV="6e6cb8feb45871f6db8084a4569ad6457240eb9f"
 MPV_URL="https://github.com/ooyang0325/mpv.git"
-MPV_REV="7828751d2aa2cc7952d9a3eea0281392278bc99c"
+MPV_REV="748e8cb8f7e5a3c7b2305ebbcc4aeb874517fa27"
 LIBBLURAY_URL="https://code.videolan.org/videolan/libbluray.git"
 LIBBLURAY_REV="1.4.1"
 R8BRAIN_URL="https://github.com/avaneev/r8brain-free-src.git"
@@ -176,26 +176,33 @@ FFMPEG_OPTS=(
     --enable-libjxl         # JPEG XL
     --enable-libssh         # sftp:// protocol
 )
+FFMPEG_DEPS=(dav1d soxr libopenmpt libjxl libssh)
 if [ "$MPEGH" = 1 ]; then
     echo "!! building a NONFREE, UNREDISTRIBUTABLE FFmpeg for MPEG-H 3D Audio"
     echo "!! this build has no rubberband and no DVD support"
     FFMPEG_OPTS+=(--enable-nonfree --enable-libmpeghdec)
+    FFMPEG_DEPS+=(mpeghdec)
 else
     FFMPEG_OPTS+=(
         --enable-gpl
         --enable-librubberband  # time stretching and pitch shifting
         --enable-libdvdnav --enable-libdvdread  # DVD demuxing
     )
+    FFMPEG_DEPS+=(rubberband dvdnav dvdread)
 fi
 fetch ffmpeg "$FFMPEG_URL" "$FFMPEG_REV"
 # Rebuild when the option set changes, not just when the tree is missing, or
 # editing the switches above would silently do nothing.
 FFMPEG_STAMP="$PREFIX/.ffmpeg-configure-stamp"
-FFMPEG_HASH="$(printf '%s\n' "$FFMPEG_REV" "${FFMPEG_OPTS[@]}" | shasum -a 256 | cut -d' ' -f1)"
+FFMPEG_DEP_VERSIONS="$("$PKG_CONFIG" --modversion "${FFMPEG_DEPS[@]}")"
+FFMPEG_HASH="$(printf '%s\n' "$FFMPEG_REV" "${FFMPEG_OPTS[@]}" \
+    "$FFMPEG_DEP_VERSIONS" | shasum -a 256 | cut -d' ' -f1)"
 if [ ! -f "$PREFIX/lib/libavcodec.dylib" ] || \
    [ "$(cat "$FFMPEG_STAMP" 2>/dev/null)" != "$FFMPEG_HASH" ]; then
     echo ">> building FFmpeg"
-    ( cd "$SRC/ffmpeg" && ./configure "${FFMPEG_OPTS[@]}" \
+    ( cd "$SRC/ffmpeg" \
+      && { [ ! -f ffbuild/config.mak ] || make distclean; } \
+      && ./configure "${FFMPEG_OPTS[@]}" \
         --extra-cflags="-I$BREW/include" --extra-ldflags="-L$BREW/lib" \
       && make -j"$JOBS" && make install )
     echo "$FFMPEG_HASH" > "$FFMPEG_STAMP"
@@ -222,18 +229,19 @@ echo ">> building libbluray"
 
 # ---- libplacebo -------------------------------------------------------------
 fetch libplacebo "$PLACEBO_URL" "$PLACEBO_REV"
-# Stamped on the pinned revision like FFmpeg above: a .pc-existence check meant that
-# bumping PLACEBO_REV rebuilt nothing and the old library was silently kept.
+# Include renderer options in the stamp so changing them cannot retain an old build.
 PLACEBO_STAMP="$PREFIX/.placebo-build-stamp"
+PLACEBO_BUILD_ID="$PLACEBO_REV-opengl-enabled-vulkan-disabled-shaderc-disabled"
 if [ ! -f "$PREFIX/lib/pkgconfig/libplacebo.pc" ] || \
-   [ "$(cat "$PLACEBO_STAMP" 2>/dev/null)" != "$PLACEBO_REV" ]; then
+   [ "$(cat "$PLACEBO_STAMP" 2>/dev/null)" != "$PLACEBO_BUILD_ID" ]; then
     echo ">> building libplacebo"
     ( cd "$SRC/libplacebo" && git submodule update --init --recursive \
       && meson setup build --prefix="$PREFIX" --buildtype=release --wipe \
-            -Dtests=false -Ddemos=false -Dxxhash=disabled \
+            -Dtests=false -Ddemos=false -Dxxhash=disabled -Dopengl=enabled \
+            -Dvulkan=disabled -Dshaderc=disabled \
             -Dc_args="-I$BREW/include" -Dcpp_args="-I$BREW/include" \
       && meson compile -C build && meson install -C build )
-    echo "$PLACEBO_REV" > "$PLACEBO_STAMP"
+    echo "$PLACEBO_BUILD_ID" > "$PLACEBO_STAMP"
 fi
 
 # ---- mpv --------------------------------------------------------------------
@@ -251,6 +259,7 @@ fi
   && cd "$SRC/mpv" && rm -rf build \
   && meson setup build --prefix="$PREFIX" --buildtype=release \
         -Dlibmpv=true -Dcplayer=false -Dorender=enabled -Dtests=true \
+        -Dgl=enabled -Dvulkan=disabled -Dshaderc=disabled \
         -Dlua=enabled -Dlibarchive=enabled -Dlibbluray=enabled \
         "${MPV_GPL_OPTS[@]}" \
   && meson compile -C build )
@@ -267,79 +276,11 @@ done
 echo ">> staging dylibs"
 rm -rf "$REPO_ROOT/deps/lib"
 # The legacy staging helper resolves direct @rpath dependencies beside libmpv.
-# Put the parser there; the closure pass below still rewrites and verifies it.
+# Put the parser there so the closure pass finds and stages it.
 cp "$PREFIX/lib/libsacd.0.dylib" "$SRC/mpv/build/"
-ruby "$REPO_ROOT/other/change_lib_dependencies.rb" "$BREW" \
+ruby "$REPO_ROOT/other/change_lib_dependencies.rb" \
+     --search-root "$PREFIX/lib" --search-root "$BREW/lib" "$BREW" \
      "$SRC/mpv/build/libmpv.2.dylib"
-
-# change_lib_dependencies.rb only rewrites Homebrew-prefixed dependencies, so
-# anything from our own prefix (FFmpeg, libplacebo) is still absolute. Walk the
-# graph to closure and make every non-system reference @rpath-relative.
-python3 - "$REPO_ROOT/deps/lib" "$PREFIX/lib" "$BREW/lib" <<'PY'
-import os, subprocess, shutil, sys
-staged, search = sys.argv[1], sys.argv[2:]
-os.chdir(staged)
-
-def deps(f):
-    out = subprocess.run(['otool', '-L', f], capture_output=True, text=True)
-    # Skip the first line (the file name) and the second (the library's own ID).
-    return [l.strip().split(' ')[0] for l in out.stdout.splitlines()[1:] if l.strip()]
-
-def bundle(src, base):
-    shutil.copy2(src, base)
-    os.chmod(base, 0o755)
-    subprocess.run(['install_name_tool', '-id', '@rpath/' + base, base], capture_output=True)
-    print('   bundled', base)
-
-changed, rounds = True, 0
-while changed and rounds < 16:
-    changed, rounds = False, rounds + 1
-    for f in sorted(os.listdir('.')):
-        if not f.endswith('.dylib'):
-            continue
-        for d in deps(f):
-            base = os.path.basename(d)
-            if d.startswith(('/usr/lib', '/System')):
-                continue
-            # A library built with @rpath install names of its own, such as libjxl
-            # referring to libjxl_cms, needs its dependency bundled too even though the
-            # reference itself is already relative and needs no rewriting.
-            if d.startswith('@rpath'):
-                if not os.path.exists(base):
-                    found = next((os.path.join(p, base) for p in search
-                                  if os.path.exists(os.path.join(p, base))), None)
-                    if not found:
-                        print('!! missing on disk:', d)
-                        continue
-                    bundle(found, base)
-                    changed = True
-                continue
-            if not os.path.exists(base):
-                if not os.path.exists(d):
-                    print('!! missing on disk:', d)
-                    continue
-                bundle(d, base)
-            subprocess.run(['install_name_tool', '-change', d, '@rpath/' + base, f],
-                           capture_output=True)
-            changed = True
-
-# Anything still absolute, or referred to but never bundled, would fail to load
-# out of the .app bundle. The second case is the one that bit libjxl_cms: the
-# reference looked fine because it was already @rpath, but the file was absent.
-bad = 0
-present = set(os.listdir('.'))
-for f in sorted(os.listdir('.')):
-    if not f.endswith('.dylib'):
-        continue
-    for d in deps(f):
-        if not d.startswith(('@rpath', '/usr/lib', '/System')):
-            print('!! unrelocated:', f, '->', d)
-            bad += 1
-        elif d.startswith('@rpath') and os.path.basename(d) not in present:
-            print('!! not bundled:', f, '->', d)
-            bad += 1
-sys.exit(1 if bad else 0)
-PY
 
 cat <<EOF
 

@@ -2084,10 +2084,6 @@ class PlayerCore: NSObject {
     mpv.setDouble("options/" + MPVOption.Subtitles.subFontSize, size)
   }
 
-  func setSubTextBold(_ bold: Bool) {
-    mpv.setFlag("options/" + MPVOption.Subtitles.subBold, bold)
-  }
-
   func setSubTextBorderColor(_ colorString: String) {
     mpv.setString("options/" + MPVOption.Subtitles.subBorderColor, colorString)
   }

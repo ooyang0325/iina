@@ -125,10 +125,6 @@ fileprivate class PluginUpdateView: SettingsContainer {
   lazy var itemID = SettingsContainerUUID.next()
   let view: NSView
 
-  func getContainer() -> NSView {
-    return view
-  }
-
   enum Status {
     case refreshing
     case error

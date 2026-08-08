@@ -10,10 +10,6 @@ import Foundation
 
 class AutoFileMatcher {
 
-  private enum AutoMatchingError: Error {
-    case ticketExpired
-  }
-
   weak private var player: PlayerCore!
   var ticket: Int
 

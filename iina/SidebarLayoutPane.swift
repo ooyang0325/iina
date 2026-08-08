@@ -22,7 +22,6 @@ class SidebarLayoutPane: SidebarScrollView {
 
   private var videoSettingsStack: NSStackView!
   private var themeSettingStack: NSStackView!
-  private var lockAspectSwitch: NSSwitch!
   private var lockWindowAspectStack: NSStackView!
   private var dockedUIStack: NSStackView!
   private var oscLayoutSelector: OSCLayoutSelector!

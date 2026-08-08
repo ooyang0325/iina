@@ -54,9 +54,15 @@ class DylibFile
   end
 end
 
+search_roots = []
+while ARGV.first == "--search-root"
+  ARGV.shift
+  search_roots << File.expand_path(ARGV.shift || abort("Missing directory after --search-root"))
+end
+
 if ARGV.length <= 1
   abort <<~END
-    Usage: change_lib_dependencies.rb prefix libraries...
+    Usage: change_lib_dependencies.rb [--search-root directory ...] prefix libraries...
 
     If you're using Homebrew, your invocation might look like this:
       $ ./change_lib_dependencies.rb "$(brew --prefix)" "$(brew --prefix mpv-iina)/lib/libmpv.dylib"
@@ -67,6 +73,7 @@ if ARGV.length <= 1
 end
 
 prefix = ARGV.shift
+closure_mode = !search_roots.empty?
 
 linked_files = ARGV
 
@@ -103,20 +110,24 @@ while !libs.empty?
   dylib = DylibFile.new file
   dylib.change_id!
   dylib.deps.each do |dep|
-    if dep.start_with?(prefix) || dep.start_with?("@rpath")
+    if dep.start_with?(prefix) || dep.start_with?("@rpath") ||
+       (closure_mode && dep.start_with?("/") &&
+        !dep.start_with?("/usr/lib", "/System"))
       fix_count += 1
       basename = File.basename(dep)
       new_name = "@rpath/#{basename}"
       dylib.change_install_name!(dep, new_name)
       dest = File.join(lib_folder, basename)
-      src =
-        if dep.start_with?(prefix)
-            dep
-        else
-            File.join(folder, basename)
-        end
-
       unless File.exist?(dest)
+        src =
+          if dep.start_with?("@rpath")
+            [folder, *search_roots].map { |root| File.join(root, basename) }
+                                   .find { |candidate| File.exist?(candidate) }
+          else
+            [dep, *search_roots.map { |root| File.join(root, basename) }]
+              .find { |candidate| File.exist?(candidate) }
+          end
+        abort("Unable to find dependency #{dep}") unless src && File.exist?(src)
         cp src, lib_folder, preserve: true
         libs << dest
         original_folder << File.dirname(src)
@@ -124,5 +135,18 @@ while !libs.empty?
     end
   end
 end
+
+errors = []
+Dir.glob(File.join(lib_folder, "*.dylib")).sort.each do |file|
+  DylibFile.new(file).deps.each do |dep|
+    if !dep.start_with?("@rpath", "/usr/lib", "/System")
+      errors << "unrelocated: #{file} -> #{dep}"
+    elsif dep.start_with?("@rpath") &&
+          !File.exist?(File.join(lib_folder, File.basename(dep)))
+      errors << "not bundled: #{file} -> #{dep}"
+    end
+  end
+end
+abort(errors.join("\n")) unless errors.empty?
 
 puts "Total #{fix_count}"

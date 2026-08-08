@@ -17,11 +17,8 @@ fileprivate let isMacOS11: Bool = {
   return false
 }()
 
-fileprivate let InteractiveModeBottomViewHeight: CGFloat = 60
-
 fileprivate let UIAnimationDuration = 0.25
 fileprivate let OSDAnimationDuration = 0.5
-fileprivate let CropAnimationDuration = 0.2
 
 fileprivate extension NSStackView.VisibilityPriority {
   static let detachEarly = NSStackView.VisibilityPriority(rawValue: 850)
@@ -801,12 +798,6 @@ class MainWindowController: PlayerWindowController {
         .constraint(equalTo: sidebars.trailingSidebar.view.leadingAnchor)
     }
     layoutSides.forEach { videoContainerConstraints[$0]?.isActive = true }
-  }
-
-  private func updateVideoContainerConstraints(_ constraints: [NSLayoutConstraint.Attribute: CGFloat]) {
-    for (attr, value) in constraints {
-      videoContainerConstraints[attr]?.constant = value
-    }
   }
 
   @objc func removeVideoViewBlackBars() {

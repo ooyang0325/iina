@@ -39,8 +39,8 @@ jobs:
         run: |
           brew untap aws/tap 2>/dev/null || true
           brew install --quiet meson ninja pkg-config nasm libass luajit uchardet \
-            libarchive libbluray little-cms2 dav1d libsoxr rubberband libopenmpt \
-            jpeg-xl libssh libdvdnav libdvdread libiconv
+            libarchive libudfread little-cms2 dav1d libsoxr rubberband libopenmpt \
+            jpeg-xl libssh libdvdnav libiconv
 
       # Keyed on the pinned revisions and on the sources compiled into the SACD bridge, so
       # moving any of them rebuilds rather than silently testing the old stack.

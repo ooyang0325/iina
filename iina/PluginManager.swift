@@ -13,8 +13,6 @@ class PluginManager {
 
   private let window: NSWindow
 
-  private var installationHandler: ((Result) -> Void)?
-
   init(window: NSWindow) {
     self.window = window
   }

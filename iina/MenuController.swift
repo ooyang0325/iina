@@ -428,12 +428,8 @@ class MenuController: NSObject, NSMenuDelegate {
 
     // Plugin
 
-    if IINA_ENABLE_PLUGIN_SYSTEM {
-      pluginMenu.delegate = self
-      pluginMenu.autoenablesItems = false
-    } else {
-      pluginMenuItem.isHidden = true
-    }
+    pluginMenu.delegate = self
+    pluginMenu.autoenablesItems = false
 
     // Window
 

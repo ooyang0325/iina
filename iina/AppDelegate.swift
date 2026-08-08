@@ -10,7 +10,6 @@ import Cocoa
 import MediaPlayer
 import Sparkle
 
-let IINA_ENABLE_PLUGIN_SYSTEM = true
 /// Whether ⌘, opens the current settings window rather than the older one.
 ///
 /// Upstream leaves this off while the new window is finished. This fork turns it on because its
@@ -22,8 +21,6 @@ let IINA_ENABLE_NEW_SETTINGS =
 
 /** Max time interval for repeated `application(_:openFile:)` calls. */
 fileprivate let OpenFileRepeatTime = TimeInterval(0.2)
-/** Tags for "Open File/URL" menu item when "Always open file in new windows" is off. Vice versa. */
-fileprivate let NormalMenuItemTag = 0
 /** Tags for "Open File/URL in New Window" when "Always open URL" when "Open file in new windows" is off. Vice versa. */
 fileprivate let AlternativeMenuItemTag = 1
 
@@ -84,7 +81,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
   }()
 
   lazy var preferenceWindowController: PreferenceWindowController = {
-    var list: [NSViewController & PreferenceWindowEmbeddable] = [
+    let list: [NSViewController & PreferenceWindowEmbeddable] = [
       PrefGeneralViewController(),
       PrefUIViewController(),
       PrefCodecViewController(),
@@ -93,13 +90,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
       PrefControlViewController(),
       PrefKeyBindingViewController(),
       PrefAdvancedViewController(),
-      // PrefPluginViewController(),
+      PrefPluginViewController(),
       PrefUtilsViewController(),
     ]
-
-    if IINA_ENABLE_PLUGIN_SYSTEM {
-      list.insert(PrefPluginViewController(), at: 8)
-    }
     return PreferenceWindowController(viewControllers: list)
   }()
 

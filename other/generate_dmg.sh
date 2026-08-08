@@ -18,8 +18,6 @@
 # IMPORTANT! This script requires that create-dmg has been installed.
 # See: https://github.com/create-dmg/create-dmg
 
-PROJECT_NAME='iina'
-
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -73,17 +71,7 @@ fi
 
 # Find the root directory of this repository clone.
 SCRIPT_PATH=$(realpath "$0")
-ROOT_PATH=$(dirname "$SCRIPT_PATH")
-
-if [[ $(basename "$ROOT_PATH") != "$PROJECT_NAME" ]]; then
-  while [[ "$ROOT_PATH" != "/" && $(basename "$ROOT_PATH") != "$PROJECT_NAME" ]]; do
-    ROOT_PATH=$(dirname "$ROOT_PATH")
-  done
-  if [[ "$ROOT_PATH" == "/" ]]; then
-    echo -e "${RED}Unable to find the root directory '$PROJECT_NAME' containing the script file.${NC}" >&2
-    exit 1
-  fi
-fi
+ROOT_PATH=$(dirname "$(dirname "$SCRIPT_PATH")")
 
 # Confirm the background image for the DMG exists.
 DMG_BACKGROUND_PATH="$ROOT_PATH/other/dmg_background.png"

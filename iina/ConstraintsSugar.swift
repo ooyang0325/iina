@@ -219,12 +219,6 @@ extension NSView {
   }
 
   @discardableResult
-  func alignBaseline(with aView: NSView) -> Self {
-    self.superview!.addConstraint(self.firstBaselineAnchor.constraint(equalTo: aView.firstBaselineAnchor))
-    return self
-  }
-
-  @discardableResult
   func flexibleSpacingTo(view: NSView, _ superview: NSView? = nil, top: CGFloat? = nil, bottom: CGFloat? = nil, leading: CGFloat? = nil, trailing: CGFloat? = nil) -> Self {
     let sv = superview ?? view.superview!
     if let top = top {
@@ -277,4 +271,3 @@ extension NSView {
     return self
   }
 }
-

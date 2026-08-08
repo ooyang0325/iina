@@ -196,7 +196,7 @@ class PreferenceWindowController: NSWindowController {
 
     detailViewBottomConstraint = prefDetailContentView.bottomAnchor.constraint(equalTo: prefDetailContentView.superview!.bottomAnchor)
 
-    var viewMap = [
+    let viewMap = [
       ["general", "PrefGeneralViewController"],
       ["ui", "PrefUIViewController"],
       ["subtitle", "PrefSubViewController"],
@@ -204,13 +204,10 @@ class PreferenceWindowController: NSWindowController {
       ["control", "PrefControlViewController"],
       ["keybindings", "PrefKeyBindingViewController"],
       ["video_audio", "PrefCodecViewController"],
-      // ["plugin", "PrefPluginViewController"],
       ["advanced", "PrefAdvancedViewController"],
+      ["plugins", "PrefPluginViewController"],
       ["utilities", "PrefUtilsViewController"],
     ]
-    if IINA_ENABLE_PLUGIN_SYSTEM {
-      viewMap.insert(["plugins", "PrefPluginViewController"], at: 8)
-    }
     let labelDict = [String: [String: [String]]](
       uniqueKeysWithValues: viewMap.map { (NSLocalizedString("preference.\($0[0])", comment: ""), self.getLabelDict(inNibNamed: $0[1])) })
 

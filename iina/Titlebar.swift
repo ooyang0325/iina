@@ -360,16 +360,6 @@ class Titlebar: NSView {
     }
   }
 
-  /// Inner edge (toward the video center) of the sidebar on the given side, in titlebar coords.
-  /// Returns `0` for a hidden left sidebar and `w` for a hidden right sidebar so the lead/trail
-  /// fade bands collapse to the bar edges.
-  private func sidebarInnerEdge(for side: SidebarController.Side, in w: CGFloat) -> CGFloat {
-    let panel = mainWindow.sidebars.sideBar(for: side)
-    guard !panel.view.isHidden else {
-      return side == .leading ? 0 : w
-    }
-    return side == .leading ? max(0, panel.view.frame.maxX) : min(w, panel.view.frame.minX)
-  }
 }
 
 
