@@ -508,7 +508,10 @@ class MPVController: NSObject {
                   level: .verbose)
     setUserOption(PK.maxVolume, type: .int, forName: MPVOption.Audio.volumeMax, level: .verbose)
 
-    chkErr(setOptionString(MPVOption.Audio.ad, "orender", verboseIfDefault: true))
+    setUserOption(PK.audioDriverEnableAVFoundation, type: .other,
+                  forName: MPVOption.Audio.ad, verboseIfDefault: true) { key in
+      Preference.bool(for: key) ? "orender" : ""
+    }
     // Object presentations stay spatial; plain channel streams use the native decoder.
     chkErr(setOptionString(MPVOption.Audio.adOrenderChannelMode, "host",
                            verboseIfDefault: true))

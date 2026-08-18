@@ -1158,7 +1158,7 @@ struct Preference {
     .toneMappingTargetPeak: 0,
     .toneMappingAlgorithm: ToneMappingAlgorithmOption.defaultValue.rawValue,
     .dolbyVisionLevel5Mode: DolbyVisionLevel5Mode.defaultValue.rawValue,
-    .audioDriverEnableAVFoundation: true,
+    .audioDriverEnableAVFoundation: false,
     .audioExclusiveMode: false,
     .audioFollowSourceFormat: false,
     .audioDsdOverPcm: false,

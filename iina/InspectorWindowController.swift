@@ -160,7 +160,7 @@ class InspectorWindowController: NSWindowController, NSWindowDelegate, NSTableVi
         self.updateTrack()
       }
 
-      self.updateDiagnostics(controller: controller, info: info)
+      self.updateDiagnostics(controller: controller, info: info, dynamic: dynamic)
     }
   }
 
@@ -829,11 +829,13 @@ private class InspectorSectionCard: NSView {
 
 private extension InspectorWindowController {
 
-  func updateDiagnostics(controller: MPVController, info: PlaybackInfo) {
+  func updateDiagnostics(controller: MPVController, info: PlaybackInfo, dynamic: Bool) {
     let video = info.videoTracks.first(where: \.isSelected)
     let audio = info.audioTracks.first(where: \.isSelected)
     updateGeneralDiagnostics(controller: controller, info: info, video: video, audio: audio)
-    updateFileDiagnostics(controller: controller, info: info)
+    if !dynamic {
+      updateFileDiagnostics(controller: controller, info: info)
+    }
     updateStatusDiagnostics(controller: controller, audio: audio)
   }
 

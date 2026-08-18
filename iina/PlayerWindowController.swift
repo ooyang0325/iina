@@ -702,7 +702,9 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   @IBAction func playSliderChanges(_ sender: NSSlider) {
     guard player.info.state.active else { return }
     let percentage = 100 * sender.doubleValue / sender.maxValue
-    player.seek(percent: percentage, forceExact: !followGlobalSeekTypeWhenAdjustSlider)
+    let isDragging = (sender as? PlaySlider)?.isDraggingKnob ?? false
+    let forceExact = !followGlobalSeekTypeWhenAdjustSlider && !isDragging
+    player.seek(percent: percentage, forceExact: forceExact)
   }
 
   internal func handleIINACommand(_ cmd: IINACommand) {

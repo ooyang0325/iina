@@ -33,6 +33,8 @@ final class PlaySlider: NSSlider {
   /// Span of the range of values the slider is configured to return.
   var span: Double { maxValue - minValue }
 
+  private(set) var isDraggingKnob = false
+
   // MARK:- Private Properties
 
   private var abLoopAKnob: PlaySliderLoopKnob!
@@ -102,7 +104,10 @@ final class PlaySlider: NSSlider {
   /// - Important: _DO NOT REMOVE_ this function thinking it is not needed. Read issue #5768.
   /// - Parameter event: An object encapsulating information about the mouse-down event.
   override func mouseDown(with event: NSEvent) {
+    isDraggingKnob = true
     super.mouseDown(with: event)
+    isDraggingKnob = false
+    sendAction(action, to: target)
   }
 
   /// The user is scrolling while the cursor is within the slider.
